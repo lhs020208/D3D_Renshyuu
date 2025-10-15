@@ -298,6 +298,7 @@ void CPersonPlayer::OnPrepareRender()
 
 void CPersonPlayer::Animate(float fElapsedTime)
 {
+	CGameObject::Animate(fElapsedTime);
 	XMFLOAT3 look = GetLook();
 	XMFLOAT3 right = GetRight();
 	XMFLOAT3 moveVec = { 0.0f, 0.0f, 0.0f };

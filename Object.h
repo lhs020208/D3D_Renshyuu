@@ -6,6 +6,7 @@
 
 #include "Mesh.h"
 #include "Camera.h"
+#include "Animator.h"
 
 class CShader;
 
@@ -68,6 +69,15 @@ public:
 	float FallingSpeed = 0.0f;
 	float Height;
 	XMFLOAT3 LastUpVector = GetUp();  // 초기화 필요
+
+protected:
+	CAnimator* m_pAnimator = nullptr;         // 애니메이터
+	ID3D12Resource* m_pd3dBoneCB = nullptr;   // 본 행렬용 상수버퍼 (b4)
+	UINT m_nBoneCount = 0;                    // 본 개수 (CB 크기 계산용)
+	void SetAnimator(CAnimator* pAnimator)
+	{
+		m_pAnimator = pAnimator;
+	}
 };
 
 class CCubeObject : public CGameObject

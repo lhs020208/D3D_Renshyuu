@@ -40,4 +40,6 @@ public:
     void  SetClip(CAnimationClip* c) { clip = c; time = 0.f; }
     void  Update(float dt);                      // time 누적 + Evaluate + 계층 전파
     std::vector<XMFLOAT4X4> GetSkinMatrices() const; // skin = global * inverseBind (셰이더용)
+
+    size_t GetBoneCount() const { return bones.size(); }
 };

@@ -29,12 +29,18 @@ cbuffer cbLightInfo : register(b3)
     float gf3LightColorY;
     float gf3LightColorZ;
 }
+cbuffer cbBones : register(b4)
+{
+    float4x4 gBoneTransforms[128];
+}
 
 struct VS_INPUT
 {
-	float3		position : POSITION;
-	float3		normal : NORMAL;
-	float2		uv : TEXTURECOORD;
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXTURECOORD;
+    uint4 boneIndices : BLENDINDICES; // 추가
+    float4 boneWeights : BLENDWEIGHT; // 추가
 };
 
 struct VS_OUTPUT

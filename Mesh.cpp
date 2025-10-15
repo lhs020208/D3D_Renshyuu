@@ -213,6 +213,7 @@ struct VertexSkinned
 {
 	XMFLOAT3 pos;
 	XMFLOAT3 normal;
+	XMFLOAT2 uv;
 	UINT boneIndices[4] = { 0,0,0,0 };
 	float boneWeights[4] = { 0,0,0,0 };
 };
@@ -272,6 +273,10 @@ void CMesh::LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList
 			int nCtrl = mesh->GetControlPointsCount();
 			FbxVector4* ctrlPts = mesh->GetControlPoints();
 
+			FbxStringList uvSetNames;
+			mesh->GetUVSetNames(uvSetNames);
+			const char* uvSetName = (uvSetNames.GetCount() > 0) ? uvSetNames[0] : nullptr;
+
 			// -------------------
 			// 스킨(본) 정보 읽기
 			// -------------------
@@ -323,6 +328,7 @@ void CMesh::LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList
 			// -------------------
 			// 정점 / 노멀 / 인덱스
 			// -------------------
+
 			for (int p = 0; p < mesh->GetPolygonCount(); ++p)
 			{
 				for (int v = 0; v < 3; ++v)
@@ -337,6 +343,23 @@ void CMesh::LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList
 					VertexSkinned vert;
 					vert.pos = XMFLOAT3((float)pos[0], (float)pos[1], (float)pos[2]);
 					vert.normal = XMFLOAT3((float)n[0], (float)n[1], (float)n[2]);
+
+					if (uvSetName)
+					{
+						FbxVector2 uv(0, 0);
+						bool unmapped = false;
+						// 이미 Triangulate 했으므로 corner == v 가 맞다.
+						mesh->GetPolygonVertexUV(p, v, uvSetName, uv, unmapped);
+						vert.uv = XMFLOAT2((float)uv[0], (float)uv[1]);
+
+						// (DirectX 텍스처 좌표계가 뒤집혀 보이면 다음 줄 활성화)
+						// vert.uv.y = 1.0f - vert.uv.y;
+					}
+					else
+					{
+						vert.uv = XMFLOAT2(0.f, 0.f);
+					}
+
 					memcpy(vert.boneIndices, vertexWeights[ctrlIdx].boneIndex, sizeof(UINT) * 4);
 					memcpy(vert.boneWeights, vertexWeights[ctrlIdx].boneWeight, sizeof(float) * 4);
 
@@ -358,6 +381,7 @@ void CMesh::LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList
 	struct VBData {
 		XMFLOAT3 pos;
 		XMFLOAT3 normal;
+		XMFLOAT2 uv;
 		UINT boneIndices[4];
 		float boneWeights[4];
 	};
@@ -366,6 +390,7 @@ void CMesh::LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList
 	{
 		vb[i].pos = vertices[i].pos;
 		vb[i].normal = vertices[i].normal;
+		vb[i].uv = vertices[i].uv;
 		memcpy(vb[i].boneIndices, vertices[i].boneIndices, sizeof(UINT) * 4);
 		memcpy(vb[i].boneWeights, vertices[i].boneWeights, sizeof(float) * 4);
 	}

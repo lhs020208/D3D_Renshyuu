@@ -72,10 +72,45 @@ void CGameObject::SetShader(CShader *pShader)
 
 void CGameObject::Animate(float fTimeElapsed)
 {
+	if (m_pAnimator)
+	{
+		m_pAnimator->Update(fTimeElapsed);
+		auto boneMats = m_pAnimator->GetSkinMatrices();
+
+		D3D12_RANGE range{ 0, 0 };
+		void* pData = nullptr;
+		m_pd3dBoneCB->Map(0, &range, &pData);
+		memcpy(pData, boneMats.data(), sizeof(XMFLOAT4X4) * boneMats.size());
+		m_pd3dBoneCB->Unmap(0, nullptr);
+	}
 }
 
-void CGameObject::CreateShaderVariables(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList)
+void CGameObject::CreateShaderVariables(ID3D12Device* pd3dDevice,
+	ID3D12GraphicsCommandList* pd3dCommandList)
 {
+#ifdef ENABLE_ANIM_SKINNING
+	if (m_pAnimator)
+	{
+		const UINT boneCount = static_cast<UINT>(m_pAnimator->GetBoneCount());
+		if (boneCount > 0)
+		{
+			m_nBoneCount = boneCount;
+
+			// 256바이트 정렬 상수버퍼 크기
+			auto Align256 = [](UINT sz) { return (sz + 255u) & ~255u; };
+			const UINT cbSize = Align256(sizeof(XMFLOAT4X4) * m_nBoneCount);
+
+			// 업로드 힙 상수버퍼 생성 (GENERIC_READ 상태)
+			// CreateBufferResource(device, cmdList, pData, nBytes, heapType, initialState, **ppUploadBuffer)
+			// 선언/정의는 stdafx.h / stdafx.cpp 참고
+			m_pd3dBoneCB = CreateBufferResource(pd3dDevice, pd3dCommandList,
+				nullptr, cbSize,
+				D3D12_HEAP_TYPE_UPLOAD,
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr);
+		}
+	}
+#endif
 }
 
 void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandList)
@@ -96,14 +131,20 @@ void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandLi
 
 void CGameObject::ReleaseShaderVariables()
 {
+	if (m_pd3dBoneCB) { m_pd3dBoneCB->Release(); m_pd3dBoneCB = nullptr; }
 }
 
 void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pCamera)
 {
 	OnPrepareRender();
-
 	UpdateShaderVariables(pd3dCommandList);
+
 	if (m_pShader) m_pShader->Render(pd3dCommandList, pCamera);
+
+	if (m_pAnimator && m_pd3dBoneCB)
+		pd3dCommandList->SetGraphicsRootConstantBufferView(4, m_pd3dBoneCB->GetGPUVirtualAddress());
+
+
 	if (m_ppMeshes)
 	{
 		for (int i = 0; i < m_nMeshes; i++)
@@ -296,6 +337,7 @@ void CExplosionObject::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamer
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void CTankObject::Animate(float fElapsedTime)
 {
+	CGameObject::Animate(fElapsedTime);
 	if (IsExist()) {
 		if (m_bBlowingUp)
 		{
