@@ -43,7 +43,7 @@ public:
 class CMesh
 {
 public:
-	CMesh(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, char *pstrFileName = NULL);
+	CMesh(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, char *pstrFileName = NULL, int model = 0);
 	CMesh(int nPolygons);
 	virtual ~CMesh();
 
@@ -102,6 +102,7 @@ public:
 	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList);
 
 	void LoadMeshFromFile(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, char *pstrFileName);
+	void LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, char* filename);
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

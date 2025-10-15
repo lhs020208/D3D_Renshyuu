@@ -138,7 +138,7 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 
 		m_pTank[i] = nullptr;
 		m_pTank[i] = new CTankObject();
-		CMesh* pTankMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Tank.obj");
+		CMesh* pTankMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Tank.obj", 1);
 		m_pTank[i]->SetMesh(0,pTankMesh);
 		m_pTank[i]->SetShader(pShader);
 		m_pTank[i]->SetColor(XMFLOAT3(red, green, blue));
@@ -147,7 +147,7 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 		m_pTank[i]->UpdateBoundingBox();
 
 		m_pTank[i]->bullet = new CGameObject();
-		CMesh* pMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Bullet.obj");
+		CMesh* pMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Bullet.obj", 1);
 		m_pTank[i]->bullet->SetMesh(0,pMesh);
 		m_pTank[i]->bullet->SetColor(XMFLOAT3(red, green, blue));
 		m_pTank[i]->bullet->SetPosition(-2.0f + 0.5f * i, 0.0f, 1.0f);
