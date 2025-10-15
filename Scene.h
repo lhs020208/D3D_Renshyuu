@@ -65,9 +65,6 @@ private:
 	static const int m_nTanks = 10;
 	CTankObject* m_pTank[m_nTanks];
 
-	int GameSet = 0;
-	CTitleObject* m_pYWObjects;
-
 	CHeightMapTerrain* m_pTerrain = NULL;
 	float G = 0.01f;
 public:

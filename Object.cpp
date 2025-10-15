@@ -328,51 +328,6 @@ void CExplosionObject::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamer
 				CGameObject::Render(pd3dCommandList, pCamera, &m_pxmf4x4Transforms[i]);
 		}
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void CTitleObject::Animate(float fElapsedTime)
-{
-	extern CGameFramework* g_pFramework;
-	Rotate(0.0f * fElapsedTime, 10.0f * fElapsedTime, 0.0f * fElapsedTime);
-	
-
-	UpdateBoundingBox();
-}
-
-void CTitleObject::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera)
-{
-	CGameObject::Render(pd3dCommandList, pCamera);
-}
-
-void CTitleObject::Rotate(float fPitch, float fYaw, float fRoll)
-{
-	XMFLOAT4X4 mtxRotate = Matrix4x4::RotationYawPitchRoll(fPitch, fYaw, fRoll);
-	m_xmf4x4World = Matrix4x4::Multiply(mtxRotate, m_xmf4x4World);
-}
-
-void CTitleObject::Rotate(XMFLOAT3& xmf3RotationAxis, float fAngle)
-{
-	XMFLOAT4X4 mtxRotate = Matrix4x4::RotationAxis(xmf3RotationAxis, fAngle);
-	m_xmf4x4World = Matrix4x4::Multiply(mtxRotate, m_xmf4x4World);
-}
-
-
-void CTitleObject::ReleaseUploadBuffers()
-{
-	CGameObject::ReleaseUploadBuffers();
-}
-
-void CTitleObject::UpdateBoundingBox()
-{
-	if (m_ppMeshes)
-	{
-		for (int i = 0; i < m_nMeshes; i++)
-		{
-			if (m_ppMeshes[i]) m_ppMeshes[i]->m_xmOOBB.Transform(m_xmOOBB, XMLoadFloat4x4(&m_xmf4x4World));
-		}
-		XMStoreFloat4(&m_xmOOBB.Orientation, XMQuaternionNormalize(XMLoadFloat4(&m_xmOOBB.Orientation)));
-	}
-}
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void CTankObject::Animate(float fElapsedTime)
 {

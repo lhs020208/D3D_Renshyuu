@@ -80,23 +80,6 @@ public:
 
 };
 
-class CTitleObject : public CGameObject
-{
-public:
-
-	virtual void Animate(float fElapsedTime) override;
-	virtual void Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera) override;
-	virtual void ReleaseUploadBuffers() override;
-	virtual void UpdateBoundingBox() override;
-
-	void Rotate(float fPitch = 0.0f, float fYaw = 10.0f, float fRoll = 0.0f);
-	void Rotate(XMFLOAT3& xmf3Axis, float fAngle);
-	bool m_bSceneRequested = false;
-
-public:
-	float m_fElapsedTimes = 0.0f;
-	float m_fDuration = 2.0f;
-};
 class CExplosionObject : public CGameObject
 {
 public:

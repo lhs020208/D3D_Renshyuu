@@ -167,14 +167,6 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 		}
 	}
 
-	CMesh* cTitleMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/YouWin.obj");
-	m_pYWObjects = new CTitleObject();
-	m_pYWObjects->SetMesh(0,cTitleMesh);
-	m_pYWObjects->SetColor(XMFLOAT3(1.0f, 0.0f, 0.0f));
-	m_pYWObjects->SetShader(pShader);
-	m_pYWObjects->SetPosition(0.0f, 1.0f, 0.0f);
-	m_pYWObjects->UpdateBoundingBox();
-
 	XMFLOAT3 xmf3Scale(1.0f, 0.2f, 1.0f);
 	XMFLOAT4 xmf4Color(0.2f, 0.2f, 0.2f, 0.0f);
 	m_pTerrain = new CHeightMapTerrain(pd3dDevice, pd3dCommandList,
@@ -194,7 +186,6 @@ void CTankScene::ReleaseObjects()
 		if (m_pTank[i]->m_pExplosionObjects)delete m_pTank[i]->m_pExplosionObjects;
 		if (m_pTank[i])delete m_pTank[i];
 	}
-	if (m_pYWObjects) delete m_pYWObjects;
 	if (m_pTerrain) delete m_pTerrain;
 }
 void CTankScene::ReleaseUploadBuffers()
@@ -203,7 +194,6 @@ void CTankScene::ReleaseUploadBuffers()
 		if (m_pTank[i]) m_pTank[i]->ReleaseUploadBuffers();
 		if (m_pTank[i]->m_pExplosionObjects) m_pTank[i]->m_pExplosionObjects->ReleaseUploadBuffers();
 	}
-	if (m_pYWObjects) m_pYWObjects->ReleaseUploadBuffers();
 	if (m_pTerrain) m_pTerrain->ReleaseUploadBuffers();
 }
 void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera)
@@ -234,7 +224,6 @@ void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCa
 			}
 		}
 	}
-	if (m_pYWObjects && GameSet >= 10) m_pYWObjects->Render(pd3dCommandList, pCamera);
 }
 void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
@@ -261,7 +250,6 @@ void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM 
 			for (int i = 0; i < 10; i++)
 				if (!m_pTank[i]->IsBlowingUp()) {
 					m_pTank[i]->PrepareExplosion();
-					GameSet++;
 				}
 			break;
 		case 'Q':
@@ -381,7 +369,6 @@ void CTankScene::CheckTankByBulletCollisions()
 						pTankPlayer->shot = false;
 						pTankPlayer->bullet_timer = 0;
 						pTankPlayer->ToggleObject = NULL;
-						GameSet++;
 					}
 				}
 		}
@@ -481,8 +468,6 @@ void CTankScene::Animate(float fElapsedTime)
 	pTankPlayer->Height = m_pTerrain->GetHeight(xmf3Position);
 	pTankPlayer->Fall(G, m_pTerrain->GetNormal(xmf3Position));
 	pTankPlayer->Animate(fElapsedTime);
-
-	if (m_pYWObjects && GameSet >= 10) m_pYWObjects->Animate(fElapsedTime);
 
 	CheckTankByBulletCollisions();
 	CheckPlayerByBulletCollisions();
