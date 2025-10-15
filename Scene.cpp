@@ -58,7 +58,7 @@ ID3D12RootSignature *CScene::CreateGraphicsRootSignature(ID3D12Device *pd3dDevic
 	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	D3D12_ROOT_SIGNATURE_DESC d3dRootSignatureDesc;
 	::ZeroMemory(&d3dRootSignatureDesc, sizeof(D3D12_ROOT_SIGNATURE_DESC));
-	d3dRootSignatureDesc.NumParameters = 5;
+	d3dRootSignatureDesc.NumParameters = 4;
 	d3dRootSignatureDesc.pParameters = pd3dRootParameters;
 	d3dRootSignatureDesc.NumStaticSamplers = 0;
 	d3dRootSignatureDesc.pStaticSamplers = NULL;
@@ -122,11 +122,6 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 	pShader->CreateShader(pd3dDevice, m_pd3dGraphicsRootSignature);
 	pShader->CreateShaderVariables(pd3dDevice, pd3dCommandList);
 
-
-	CTerrainLightingShader* pTerrainShader = new CTerrainLightingShader();
-	pTerrainShader->CreateShader(pd3dDevice, m_pd3dGraphicsRootSignature);
-	pTerrainShader->CreateShaderVariables(pd3dDevice, pd3dCommandList);
-
 	using namespace std;
 	default_random_engine dre{ random_device{}() };
 	uniform_real_distribution<float> uid{ 0.0f,1.0f };
@@ -171,16 +166,6 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 			m_pTank[i]->m_pExplosionObjects->Draw[j] = false;
 		}
 	}
-
-	XMFLOAT3 xmf3Scale(1.0f, 0.2f, 1.0f);
-	XMFLOAT4 xmf4Color(0.2f, 0.2f, 0.2f, 0.0f);
-	m_pTerrain = new CHeightMapTerrain(pd3dDevice, pd3dCommandList,
-		m_pd3dGraphicsRootSignature, _T("Models/HeightMap.raw"), 257, 257, 257,
-		257, xmf3Scale, xmf4Color);
-	m_pTerrain->SetPosition(-128.0f, -20.0f, -128.0f);
-	m_pTerrain->SetColor(XMFLOAT3(0.2f, 0.2f, 0.2f));
-	m_pTerrain->SetShader(pTerrainShader);
-	m_pTerrain->UpdateBoundingBox();
 }
 
 void CTankScene::ReleaseObjects()
@@ -191,7 +176,6 @@ void CTankScene::ReleaseObjects()
 		if (m_pTank[i]->m_pExplosionObjects)delete m_pTank[i]->m_pExplosionObjects;
 		if (m_pTank[i])delete m_pTank[i];
 	}
-	if (m_pTerrain) delete m_pTerrain;
 }
 void CTankScene::ReleaseUploadBuffers()
 {
@@ -199,7 +183,6 @@ void CTankScene::ReleaseUploadBuffers()
 		if (m_pTank[i]) m_pTank[i]->ReleaseUploadBuffers();
 		if (m_pTank[i]->m_pExplosionObjects) m_pTank[i]->m_pExplosionObjects->ReleaseUploadBuffers();
 	}
-	if (m_pTerrain) m_pTerrain->ReleaseUploadBuffers();
 }
 void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera)
 {
@@ -214,8 +197,6 @@ void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCa
 		m_xmf3LightColor.z, 
 	};
 	pd3dCommandList->SetGraphicsRoot32BitConstants(3, 6, light, 0);
-
-	if (m_pTerrain) m_pTerrain->Render(pd3dCommandList, pCamera);
 	if (m_pPlayer) m_pPlayer->Render(pd3dCommandList, pCamera);
 
 	for (int i = 0; i < m_nTanks; i++) {
@@ -320,7 +301,6 @@ void CTankScene::Animate(float fElapsedTime)
 
 			m_pTank[i]->Animate(fElapsedTime);
 			XMFLOAT3 xmf3Position = m_pTank[i]->GetPosition();
-			m_pTank[i]->Height = m_pTerrain->GetHeight(xmf3Position);
 
 			if (m_pTank[i]->IsBlowingUp()) {
 				for (int j = 0; j < EXPLOSION_DEBRISES; j++) {
