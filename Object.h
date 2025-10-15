@@ -67,7 +67,6 @@ public:
 
 	float FallingSpeed = 0.0f;
 	float Height;
-	void Fall(float G, XMFLOAT3 Normal);
 	XMFLOAT3 LastUpVector = GetUp();  // 초기화 필요
 };
 

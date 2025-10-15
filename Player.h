@@ -81,7 +81,6 @@ public:
 	virtual CCamera *ChangeCamera(DWORD nNewCameraMode, float fTimeElapsed) { return(NULL); }
 	virtual void OnPrepareRender();
 	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pCamera = NULL);
-	virtual void Fall(float G, XMFLOAT3 Normal) {}
 	XMFLOAT3 LastUpVector = GetUp();  // 초기화 필요
 };
 
@@ -128,6 +127,5 @@ public:
 
 	float FallingSpeed = 0.0f;
 	float Height;
-	virtual void Fall(float G, XMFLOAT3 Normal)override;
 
 };

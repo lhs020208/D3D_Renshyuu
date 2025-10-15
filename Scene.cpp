@@ -451,7 +451,6 @@ void CTankScene::Animate(float fElapsedTime)
 			m_pTank[i]->Animate(fElapsedTime);
 			XMFLOAT3 xmf3Position = m_pTank[i]->GetPosition();
 			m_pTank[i]->Height = m_pTerrain->GetHeight(xmf3Position);
-			m_pTank[i]->Fall(G, m_pTerrain->GetNormal(xmf3Position));
 
 			if (m_pTank[i]->IsBlowingUp()) {
 				for (int j = 0; j < EXPLOSION_DEBRISES; j++) {
@@ -466,7 +465,6 @@ void CTankScene::Animate(float fElapsedTime)
 
 	XMFLOAT3 xmf3Position = pTankPlayer->GetPosition();
 	pTankPlayer->Height = m_pTerrain->GetHeight(xmf3Position);
-	pTankPlayer->Fall(G, m_pTerrain->GetNormal(xmf3Position));
 	pTankPlayer->Animate(fElapsedTime);
 
 	CheckTankByBulletCollisions();

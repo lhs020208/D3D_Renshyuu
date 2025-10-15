@@ -420,39 +420,3 @@ CCamera* CTankPlayer::ChangeCamera(DWORD nNewCameraMode, float fTimeElapsed)
 
 	return(m_pCamera);
 }
-
-void CTankPlayer::Fall(float G, XMFLOAT3 Normal)
-{
-	FallingSpeed += G;
-	XMFLOAT3 xmf3Position = GetPosition();
-	xmf3Position.y -= FallingSpeed;
-
-	if (xmf3Position.y <= Height)
-	{
-		xmf3Position.y = Height;
-		FallingSpeed = 0.0f;
-		// 1. Up 벡터를 Normal로 설정
-		XMVECTOR vFrom = XMLoadFloat3(&LastUpVector);
-		XMVECTOR vTo = XMVector3Normalize(XMLoadFloat3(&Normal));
-
-		XMVECTOR vNewUp = XMVector3Normalize(XMVectorLerp(vFrom, vTo, 0.1f));
-		XMStoreFloat3(&LastUpVector, vNewUp);
-
-		XMFLOAT3 xmf3Up = LastUpVector;
-
-		// 2. 기존 Look, Right 벡터 가져오기
-		XMFLOAT3 xmf3Look = m_xmf3Look;
-		XMFLOAT3 xmf3Right = m_xmf3Right;
-
-		// 3. Right, Look 재계산
-		xmf3Right = Vector3::Normalize(Vector3::CrossProduct(xmf3Up, xmf3Look, true));
-		xmf3Up = Vector3::Normalize(Vector3::CrossProduct(xmf3Look, xmf3Right, true));
-
-		// 4. 실제 Player 멤버 벡터에 반영
-		m_xmf3Up = xmf3Up;
-		m_xmf3Right = xmf3Right;
-		m_xmf3Look = xmf3Look;
-	}
-
-	SetPosition(xmf3Position);
-}
