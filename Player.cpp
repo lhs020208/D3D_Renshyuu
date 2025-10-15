@@ -275,7 +275,7 @@ CCamera * CCubePlayer::ChangeCamera(DWORD nNewCameraMode, float fTimeElapsed)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-CTankPlayer::CTankPlayer(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList, ID3D12RootSignature* pd3dGraphicsRootSignature)
+CPersonPlayer::CPersonPlayer(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList, ID3D12RootSignature* pd3dGraphicsRootSignature)
 {
 	m_pCamera = ChangeCamera(THIRD_PERSON_CAMERA, 0.0f);
 
@@ -289,31 +289,14 @@ CTankPlayer::CTankPlayer(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd
 	pShader->CreateShaderVariables(pd3dDevice, pd3dCommandList);
 
 	SetShader(pShader);
-
-	m_pBullet = new CGameObject();
-	CMesh* pMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Bullet.obj");
-	m_pBullet->SetMesh(0,pMesh);
-	m_pBullet->SetColor(XMFLOAT3(m_xmf3Color));
-	m_pBullet->SetPosition(GetPosition());
-	m_pBullet->SetShader(pShader);
-	m_pBullet->UpdateBoundingBox();
-
-	m_pShild = new CCubeObject();
-	CCubeMesh* pCubeMesh = new CCubeMesh(pd3dDevice, pd3dCommandList, 3.0f, 3.0f, 3.0f);
-	m_pShild->SetMesh(0,pCubeMesh);
-	m_pShild->SetColor(XMFLOAT3(m_xmf3Color));
-	m_pShild->SetPosition(GetPosition());
-	m_pShild->SetShader(pShader);
-	m_pShild->UpdateBoundingBox();
-
 }
-void CTankPlayer::OnPrepareRender()
+void CPersonPlayer::OnPrepareRender()
 {
 	CPlayer::OnPrepareRender();
 	//m_xmf4x4World = Matrix4x4::Multiply(XMMatrixRotationRollPitchYaw(XMConvertToRadians(90.0f), 0.0f, 0.0f), m_xmf4x4World);
 }
 
-void CTankPlayer::Animate(float fElapsedTime)
+void CPersonPlayer::Animate(float fElapsedTime)
 {
 	XMFLOAT3 look = GetLook();
 	XMFLOAT3 right = GetRight();
@@ -330,52 +313,18 @@ void CTankPlayer::Animate(float fElapsedTime)
 	XMFLOAT3 now_pos = GetPosition();
 	SetPosition(now_pos.x + moveVec.x, now_pos.y, now_pos.z + moveVec.z);
 
-	m_pShild->SetPosition(now_pos.x + moveVec.x, now_pos.y, now_pos.z + moveVec.z);
+	CPersonPlayer::OnPrepareRender();
 
-	CTankPlayer::OnPrepareRender();
-
-
-	if (shot) {
-		bullet_timer++;
-		if (Toggle && ToggleObject) {
-			m_pBullet->LookAt(ToggleObject->GetPosition(), m_pBullet->GetUp());
-		}
-		m_pBullet->SetPosition(Vector3::Add(m_pBullet->GetPosition(), Vector3::ScalarProduct(m_pBullet->GetLook(), fElapsedTime * 2.0f * 5, false)));
-		if (bullet_timer >= 200) {
-			bullet_timer = 0;
-			SwitchBullet();
-		}
-	}
 	UpdateBoundingBox();
-	m_pBullet->UpdateBoundingBox();
-	m_pShild->UpdateBoundingBox();
 }
 
-void CTankPlayer::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera)
+void CPersonPlayer::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera)
 {
 	CPlayer::Render(pd3dCommandList, pCamera);
-	if (OnShild && m_pShild) m_pShild->Render(pd3dCommandList, pCamera);
-	if (shot) m_pBullet->Render(pd3dCommandList, pCamera);
 }
 
-void CTankPlayer::SetBulletPosition()
-{
-	m_pBullet->SetPosition(GetPosition().x, GetPosition().y, GetPosition().z);
 
-	XMFLOAT3 right = GetRight();
-	XMFLOAT3 up = GetUp();
-	XMFLOAT3 look = GetLook();
-
-	XMFLOAT4X4 rotationMatrix;
-	rotationMatrix._11 = right.x; rotationMatrix._12 = right.y; rotationMatrix._13 = right.z; rotationMatrix._14 = 0.0f;
-	rotationMatrix._21 = up.x;    rotationMatrix._22 = up.y;    rotationMatrix._23 = up.z;    rotationMatrix._24 = 0.0f;
-	rotationMatrix._31 = look.x;  rotationMatrix._32 = look.y;  rotationMatrix._33 = look.z;  rotationMatrix._34 = 0.0f;
-	rotationMatrix._41 = 0.0f;    rotationMatrix._42 = 0.0f;    rotationMatrix._43 = 0.0f;    rotationMatrix._44 = 1.0f;
-
-	m_pBullet->SetRotationTransform(&rotationMatrix);
-}
-
-void CTankPlayer::Rotate(float fPitch, float fYaw, float fRoll)
+void CPersonPlayer::Rotate(float fPitch, float fYaw, float fRoll)
 {
 	CPlayer::Rotate(fPitch, fYaw, fRoll);
 	XMFLOAT3 right = GetRight();
@@ -388,12 +337,10 @@ void CTankPlayer::Rotate(float fPitch, float fYaw, float fRoll)
 	rotationMatrix._31 = look.x;  rotationMatrix._32 = look.y;  rotationMatrix._33 = look.z;  rotationMatrix._34 = 0.0f;
 	rotationMatrix._41 = 0.0f;    rotationMatrix._42 = 0.0f;    rotationMatrix._43 = 0.0f;    rotationMatrix._44 = 1.0f;
 
-	m_pShild->SetRotationTransform(&rotationMatrix);
-
 	UpdateBoundingBox();
 }
 
-CCamera* CTankPlayer::ChangeCamera(DWORD nNewCameraMode, float fTimeElapsed)
+CCamera* CPersonPlayer::ChangeCamera(DWORD nNewCameraMode, float fTimeElapsed)
 {
 	DWORD nCurrentCameraMode = (m_pCamera) ? m_pCamera->GetMode() : 0x00;
 	if (nCurrentCameraMode == nNewCameraMode) return(m_pCamera);

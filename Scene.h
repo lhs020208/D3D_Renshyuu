@@ -53,11 +53,6 @@ public:
 	CGameObject* PickObjectPointedByCursor(int xClient, int yClient, CCamera* pCamera);
 	virtual void OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam) override;
 
-	void CTankScene::CheckTankByBulletCollisions();
-	void CTankScene::CheckPlayerByBulletCollisions();
-	void CTankScene::CheckExpByTerrain();
-	void CTankScene::CheckBulletByTerrain();
-
 private:
 	XMFLOAT3 m_xmf3LightDirection = XMFLOAT3(0.0f, -1.0f, 0.0f);
 	XMFLOAT3 m_xmf3LightColor = XMFLOAT3(1.0f, 1.0f, 1.0f);

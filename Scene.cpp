@@ -228,7 +228,6 @@ void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCa
 void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
 	extern CGameFramework* g_pFramework;
-	CTankPlayer* pTankPlayer = dynamic_cast<CTankPlayer*>(m_pPlayer);
 	switch (nMessageID)
 	{
 	case WM_KEYDOWN:
@@ -251,28 +250,6 @@ void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM 
 				if (!m_pTank[i]->IsBlowingUp()) {
 					m_pTank[i]->PrepareExplosion();
 				}
-			break;
-		case 'Q':
-			if (pTankPlayer) {
-				pTankPlayer->SwitchShild();
-			}
-			break;
-		case 'E':
-			if (pTankPlayer && !pTankPlayer->shot) {
-				pTankPlayer->SwitchBullet();
-				pTankPlayer->SetBulletPosition();
-			}
-			break;
-			break;
-		case VK_RETURN:
-			if (pTankPlayer->Toggle) {
-				pTankPlayer->Toggle = false;
-				m_pTerrain->SetColor(XMFLOAT3(0.2f, 0.2f, 0.2f));
-			}
-			else {
-				pTankPlayer->Toggle = true;
-				m_pTerrain->SetColor(XMFLOAT3(0.3f, 0.0f, 0.0f));
-			}
 			break;
 		default:
 			break;
@@ -329,118 +306,6 @@ CGameObject* CTankScene::PickObjectPointedByCursor(int xClient, int yClient, CCa
 }
 void CTankScene::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
-	CTankPlayer* pTankPlayer = dynamic_cast<CTankPlayer*>(m_pPlayer);
-	switch (nMessageID)
-	{
-	case WM_RBUTTONDOWN:
-	{
-		if (pTankPlayer->Toggle) {
-
-			int x = LOWORD(lParam);
-			int y = HIWORD(lParam);
-			CCamera* pCamera = m_pPlayer->GetCamera();
-
-			CGameObject* pPickedObject = PickObjectPointedByCursor(x, y, pCamera);
-
-			if (pPickedObject) {
-				for (int i = 0; i < m_nTanks; i++) {
-					if (pPickedObject == m_pTank[i]) {
-						pTankPlayer->ToggleObject = m_pTank[i];
-					}
-				}
-			}
-
-			break;
-		}
-	}
-	}
-}
-void CTankScene::CheckTankByBulletCollisions()
-{
-	CTankPlayer* pTankPlayer = dynamic_cast<CTankPlayer*>(m_pPlayer);
-	if (pTankPlayer && pTankPlayer->shot) {
-		for (int i = 0; i < 10; i++)
-		{
-			if (m_pTank[i]->IsExist())
-				if (m_pTank[i]->m_xmOOBB.Intersects(pTankPlayer->m_pBullet->m_xmOOBB))
-				{
-					if (!m_pTank[i]->IsBlowingUp()) {
-						m_pTank[i]->PrepareExplosion();
-						pTankPlayer->shot = false;
-						pTankPlayer->bullet_timer = 0;
-						pTankPlayer->ToggleObject = NULL;
-					}
-				}
-		}
-	}
-}
-void CTankScene::CheckPlayerByBulletCollisions()
-{
-	CTankPlayer* pTankPlayer = dynamic_cast<CTankPlayer*>(m_pPlayer);
-	if (pTankPlayer) {
-		for (int i = 0; i < m_nTanks; i++)
-		{
-			if (!pTankPlayer->OnShild) {
-				if (m_pTank[i]->IsExist() && m_pTank[i]->IsShot())
-					if (pTankPlayer->m_xmOOBB.Intersects(m_pTank[i]->bullet->m_xmOOBB))
-					{
-						XMFLOAT3 color = m_pTank[i]->m_xmf3Color;
-
-						pTankPlayer->SetColor(color);
-						pTankPlayer->m_pBullet->SetColor(color);
-						pTankPlayer->m_pShild->SetColor(color);
-
-						m_pTank[i]->SwitchShot();
-					}
-			}
-			else {
-				if (m_pTank[i]->IsExist() && m_pTank[i]->IsShot())
-					if (pTankPlayer->m_pShild->m_xmOOBB.Intersects(m_pTank[i]->bullet->m_xmOOBB))
-					{
-						m_pTank[i]->SwitchShot();
-					}
-			}
-		}
-	}
-}
-
-void CTankScene::CheckExpByTerrain()
-{
-	for (int i = 0; i < 10; i++)
-	{
-		if (m_pTank[i]->IsExist() && m_pTank[i]->IsBlowingUp()) {
-			for (int j = 0; j < EXPLOSION_DEBRISES; j++)
-			if (m_pTank[i]->m_pExplosionObjects->Draw[j])
-			{
-				XMFLOAT3 xmf3Position;
-				XMFLOAT4X4& xmf4x4Transform = m_pTank[i]->m_pxmf4x4Transforms[j];
-				xmf3Position = XMFLOAT3(xmf4x4Transform._41, xmf4x4Transform._42, xmf4x4Transform._43);
-
-				float fHeight = m_pTerrain->GetHeight(xmf3Position);
-				if (xmf3Position.y < fHeight) {
-					m_pTank[i]->m_pExplosionObjects->Draw[j] = false;
-					m_pTank[i]->m_pExplosionObjects->m_pxmf4x4Transforms[j] = Matrix4x4::Identity();
-					m_pTank[i]->m_pExplosionObjects->m_pxmf3SphereVectors[j] = XMFLOAT3(0.0f, 0.0f, 0.0f);
-				}
-			}
-		}
-	}
-}
-
-void CTankScene::CheckBulletByTerrain()
-{
-	CTankPlayer* pTankPlayer = dynamic_cast<CTankPlayer*>(m_pPlayer);
-	if (pTankPlayer && pTankPlayer->shot) {
-		XMFLOAT3 xmf3Position;
-		xmf3Position = pTankPlayer->m_pBullet->GetPosition();
-
-		float fHeight = m_pTerrain->GetHeight(xmf3Position);
-		if (xmf3Position.y + 1.0f < fHeight) {
-			pTankPlayer->shot = false;
-			pTankPlayer->bullet_timer = 0;
-			pTankPlayer->ToggleObject = NULL;
-		}
-	}
 }
 
 void CTankScene::Animate(float fElapsedTime)
@@ -461,14 +326,6 @@ void CTankScene::Animate(float fElapsedTime)
 		}
 	}
 
-	CTankPlayer* pTankPlayer = dynamic_cast<CTankPlayer*>(m_pPlayer);
-
-	XMFLOAT3 xmf3Position = pTankPlayer->GetPosition();
-	pTankPlayer->Height = m_pTerrain->GetHeight(xmf3Position);
-	pTankPlayer->Animate(fElapsedTime);
-
-	CheckTankByBulletCollisions();
-	CheckPlayerByBulletCollisions();
-	CheckExpByTerrain();
-	CheckBulletByTerrain();
+	XMFLOAT3 xmf3Position = m_pPlayer->GetPosition();
+	m_pPlayer->Animate(fElapsedTime);
 }
