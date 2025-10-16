@@ -32,7 +32,7 @@ CMesh::CMesh(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandLis
 		if (pstrFileName) LoadMeshFromFile(pd3dDevice, pd3dCommandList, pstrFileName);
 	}
 	else{
-		if (pstrFileName) LoadMeshFromFile_fbx(pd3dDevice, pd3dCommandList, pstrFileName);
+		if (pstrFileName) LoadMeshFromFile_bin(pd3dDevice, pd3dCommandList, pstrFileName);
 	}
 }
 
@@ -412,6 +412,117 @@ void CMesh::LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList
 	m_d3dIndexBufferView.BufferLocation = m_pd3dIndexBuffer->GetGPUVirtualAddress();
 	m_d3dIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
 	m_d3dIndexBufferView.SizeInBytes = ibSize;
+}
+void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const char* filename)
+{
+	std::ifstream in(filename, std::ios::binary);
+	if (!in.is_open()) return;
+
+	uint32_t vcount = 0, icount = 0, bcount = 0;
+	in.read(reinterpret_cast<char*>(&vcount), sizeof(uint32_t));
+	in.read(reinterpret_cast<char*>(&icount), sizeof(uint32_t));
+	in.read(reinterpret_cast<char*>(&bcount), sizeof(uint32_t));
+	if (vcount == 0 || icount == 0) return;
+
+	struct VertexFull {
+		XMFLOAT3 pos;
+		XMFLOAT3 normal;
+		XMFLOAT3 tangent;
+		XMFLOAT3 bitangent;
+		XMFLOAT2 uv;
+		UINT     boneIndices[4];
+		float    boneWeights[4];
+	};
+
+	std::vector<VertexFull> vtx(vcount);
+	std::vector<UINT> idx(icount);
+	in.read(reinterpret_cast<char*>(vtx.data()), sizeof(VertexFull) * vcount);
+	in.read(reinterpret_cast<char*>(idx.data()), sizeof(UINT) * icount);
+
+	// 본 정보(안 쓰면 보관만)
+	m_FbxBones.clear();
+	for (uint32_t i = 0; i < bcount; i++) {
+		FBXBone bone;
+		uint32_t nameLen = 0;
+		in.read(reinterpret_cast<char*>(&nameLen), sizeof(uint32_t));
+		bone.name.resize(nameLen);
+		in.read(bone.name.data(), nameLen);
+		in.read(reinterpret_cast<char*>(&bone.parentIndex), sizeof(int));
+		in.read(reinterpret_cast<char*>(&bone.offsetMatrix), sizeof(float) * 16);
+		m_FbxBones.push_back(bone);
+	}
+	in.close();
+
+	// ===== CPU 배열 채우기 (픽킹/OBB/디버그 경로 동일) =====
+	m_nVertices = vcount;
+	m_nIndices = icount;
+
+	if (m_pxmf3Positions) { delete[] m_pxmf3Positions; m_pxmf3Positions = nullptr; }
+	if (m_pxmf3Normals) { delete[] m_pxmf3Normals;   m_pxmf3Normals = nullptr; }
+	if (m_pxmf2TextureCoords) { delete[] m_pxmf2TextureCoords; m_pxmf2TextureCoords = nullptr; }
+	if (m_pnIndices) { delete[] m_pnIndices;      m_pnIndices = nullptr; }
+
+	m_pxmf3Positions = new XMFLOAT3[m_nVertices];
+	m_pxmf3Normals = new XMFLOAT3[m_nVertices];
+	m_pxmf2TextureCoords = new XMFLOAT2[m_nVertices];
+	m_pnIndices = new UINT[m_nIndices];
+
+	for (UINT i = 0; i < m_nVertices; i++) {
+		m_pxmf3Positions[i] = vtx[i].pos;
+		m_pxmf3Normals[i] = vtx[i].normal;
+		m_pxmf2TextureCoords[i] = vtx[i].uv; // 셰이더에서 쓸 거면 별도 VB 또는 인터리브 확장 필요
+	}
+	memcpy(m_pnIndices, idx.data(), sizeof(UINT) * m_nIndices);
+
+	// ===== GPU 업로드 (기존 파이프라인: pos+normal+skin) =====
+	struct VertexBufferData {
+		XMFLOAT3 pos;
+		XMFLOAT3 normal;
+		UINT boneIndices[4];
+		float boneWeights[4];
+	};
+
+	std::vector<VertexBufferData> vb(m_nVertices);
+	for (UINT i = 0; i < m_nVertices; i++) {
+		vb[i].pos = vtx[i].pos;
+		vb[i].normal = vtx[i].normal;
+		memcpy(vb[i].boneIndices, vtx[i].boneIndices, sizeof(UINT) * 4);
+		memcpy(vb[i].boneWeights, vtx[i].boneWeights, sizeof(float) * 4);
+	}
+
+	// 정점 버퍼
+	const UINT vbSize = (UINT)(sizeof(VertexBufferData) * m_nVertices);
+	if (m_pd3dPositionBuffer) m_pd3dPositionBuffer->Release();
+	m_pd3dPositionBuffer = CreateBufferResource(device, cmdList, vb.data(), vbSize,
+		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, &m_pd3dPositionUploadBuffer);
+
+	m_nVertexBufferViews = 1;
+	if (m_pd3dVertexBufferViews) delete[] m_pd3dVertexBufferViews;
+	m_pd3dVertexBufferViews = new D3D12_VERTEX_BUFFER_VIEW[1];
+	m_pd3dVertexBufferViews[0].BufferLocation = m_pd3dPositionBuffer->GetGPUVirtualAddress();
+	m_pd3dVertexBufferViews[0].StrideInBytes = sizeof(VertexBufferData);
+	m_pd3dVertexBufferViews[0].SizeInBytes = vbSize;
+
+	// 인덱스 버퍼
+	const UINT ibSize = (UINT)(sizeof(UINT) * m_nIndices);
+	if (m_pd3dIndexBuffer) m_pd3dIndexBuffer->Release();
+	m_pd3dIndexBuffer = CreateBufferResource(device, cmdList, m_pnIndices, ibSize,
+		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_INDEX_BUFFER, &m_pd3dIndexUploadBuffer);
+
+	m_d3dIndexBufferView.BufferLocation = m_pd3dIndexBuffer->GetGPUVirtualAddress();
+	m_d3dIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+	m_d3dIndexBufferView.SizeInBytes = ibSize;
+
+	// OBB (원본 위치 기반)
+	XMFLOAT3 min = m_pxmf3Positions[0], max = m_pxmf3Positions[0];
+	for (UINT i = 1; i < m_nVertices; i++) {
+		auto& v = m_pxmf3Positions[i];
+		if (v.x < min.x) min.x = v.x; if (v.y < min.y) min.y = v.y; if (v.z < min.z) min.z = v.z;
+		if (v.x > max.x) max.x = v.x; if (v.y > max.y) max.y = v.y; if (v.z > max.z) max.z = v.z;
+	}
+	XMFLOAT3 center{ (min.x + max.x) * 0.5f,(min.y + max.y) * 0.5f,(min.z + max.z) * 0.5f };
+	XMFLOAT3 extent{ (max.x - min.x) * 0.5f,(max.y - min.y) * 0.5f,(max.z - min.z) * 0.5f };
+	m_xmOOBB = BoundingOrientedBox(center, extent, XMFLOAT4(0, 0, 0, 1));
 }
 void CMesh::SetPolygon(int nIndex, CPolygon* pPolygon)
 {

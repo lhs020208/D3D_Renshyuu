@@ -103,6 +103,7 @@ public:
 
 	void LoadMeshFromFile(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, char *pstrFileName);
 	void LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const char* filename);
+	void LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const char* filename);
 public:
 	struct FBXVertexWeight {
 		UINT boneIndex[4] = { 0, };
