@@ -434,13 +434,10 @@ void CGameFramework::BuildObjects()
 
 
 	m_pPlayer = new CPersonPlayer(m_pd3dDevice, m_pd3dCommandList, m_pScene->GetGraphicsRootSignature());
-	CMesh* pCubeMesh = new CMesh(m_pd3dDevice, m_pd3dCommandList, "Models/unity-chan/Unity-chan! Model/Art/Models/unitychan.fbx", 2);
-	m_pPlayer->SetMesh(0,pCubeMesh);
-	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
-	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, -12.0f));
-	m_pCamera = m_pPlayer->GetCamera();
 
+	m_pCamera = m_pPlayer->GetCamera();
 	m_pScene->SetPlayer(m_pPlayer);
+
 	if (m_pScene) m_pScene->BuildObjects(m_pd3dDevice, m_pd3dCommandList);
 
 	m_pd3dCommandList->Close();

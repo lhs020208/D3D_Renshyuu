@@ -130,6 +130,11 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 	uniform_real_distribution<float> uid_z{ 0,100.0f };
 	uniform_real_distribution<float> uid_rot{ 0,360.0f };
 
+	CMesh* pCubeMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/unity-chan/Unity-chan! Model/Art/Models/unitychan.fbx", 2);
+	m_pPlayer->SetMesh(0, pCubeMesh);
+	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
+	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, -12.0f));
+
 	for (int i = 0; i < m_nTanks; i++)
 	{
 		float red = uid(dre);
