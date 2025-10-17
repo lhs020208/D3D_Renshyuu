@@ -41,7 +41,6 @@ using namespace std;
 #include <DirectXCollision.h>
 
 #include <D3d12SDKLayers.h>
-#include <fbxsdk.h>
 
 
 using namespace DirectX;

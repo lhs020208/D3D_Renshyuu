@@ -102,7 +102,6 @@ public:
 	virtual void Render(ID3D12GraphicsCommandList *pd3dCommandList);
 
 	void LoadMeshFromFile(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *pd3dCommandList, char *pstrFileName);
-	void LoadMeshFromFile_fbx(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const char* filename);
 	void LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const char* filename);
 public:
 	struct FBXVertexWeight {
@@ -115,10 +114,6 @@ public:
 		XMFLOAT4X4 offsetMatrix;
 	};
 protected:
-	FbxManager* m_pFbxManager = nullptr;
-	FbxScene* m_pFbxScene = nullptr;
-	
-
 	std::vector<FBXBone>         m_FbxBones;
 	std::vector<FBXVertexWeight> m_FbxWeights;
 };
