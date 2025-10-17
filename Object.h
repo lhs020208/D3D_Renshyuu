@@ -80,55 +80,5 @@ protected:
 	}
 };
 
-class CCubeObject : public CGameObject
-{
-public:
-
-	virtual void Animate(float fElapsedTime) override;
-	virtual void Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera) override;
-
-};
-
-class CExplosionObject : public CGameObject
-{
-public:
-	bool Draw[EXPLOSION_DEBRISES];
-	virtual void Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera) override;
-
-	XMFLOAT4X4 m_pxmf4x4Transforms[EXPLOSION_DEBRISES];
-	XMFLOAT3 m_pxmf3SphereVectors[EXPLOSION_DEBRISES];
-};
-
-class CTankObject : public CGameObject
-{
-public:
-
-	virtual void Animate(float fElapsedTime) override;
-	virtual void Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera) override;
-	virtual void ReleaseUploadBuffers() override;
-	void PrepareExplosion();
-	bool IsBlowingUp() { return m_bBlowingUp; }
-	bool IsExist() { return is_exist; }
-	void SetExist(bool exist) { is_exist = exist; }
-
-	void SwitchShot() { shot = !shot; bullet_timer = 0; }
-	bool IsShot() { return shot; }
 
 
-	XMFLOAT4X4 m_pxmf4x4Transforms[EXPLOSION_DEBRISES];
-	XMFLOAT3 m_pxmf3SphereVectors[EXPLOSION_DEBRISES];
-
-	CGameObject* bullet;
-	CExplosionObject* m_pExplosionObjects;
-private:
-	bool is_exist = true;
-	bool m_bBlowingUp = false;
-	bool m_bPrevBlowingUp = false;
-	float m_fElapsedTimes = 0.0f;
-	float m_fDuration = 2.0f;
-	float m_fExplosionSpeed = 10.0f;
-	float m_fExplosionRotation = 360.0f;
-	int timer = 0;
-	int bullet_timer = 0;
-	bool shot = false;
-};

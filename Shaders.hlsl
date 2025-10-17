@@ -58,6 +58,7 @@ float4 VSPseudoLighting(float4 position : POSITION) : SV_POSITION
 
 VS_OUTPUT VSLighting(VS_INPUT input)
 {
+    
 	VS_OUTPUT output;
 
 	output.positionW = mul(float4(input.position, 1.0f), gmtxWorld).xyz;
@@ -67,6 +68,38 @@ VS_OUTPUT VSLighting(VS_INPUT input)
 	output.uv = input.uv;
 
 	return(output);
+    /*
+    VS_OUTPUT output;
+
+    //스키닝 적용
+    float4 skinnedPos = float4(0, 0, 0, 0);
+    float3 skinnedNormal = float3(0, 0, 0);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        uint idx = input.boneIndices[i];
+        float w = input.boneWeights[i];
+        if (w > 0)
+        {
+            if (any(isnan(skinnedPos)) || any(isinf(skinnedPos)))
+                skinnedPos = float4(0, 0, 0, 1);
+            
+            skinnedPos += mul(gBoneTransforms[idx], float4(input.position, 1.0f)) * w;
+            skinnedNormal += mul((float3x3) gBoneTransforms[idx], input.normal) * w;
+        }
+    }
+
+    //이후 기존 월드변환 적용
+    float4 worldPos = mul(skinnedPos, gmtxWorld);
+    output.positionW = worldPos.xyz;
+    output.positionH = mul(mul(worldPos, gmtxView), gmtxProjection);
+
+    output.normalW = normalize(mul(float4(skinnedNormal, 0.0f), gmtxWorld).xyz);
+    output.normal = normalize(skinnedNormal);
+    output.uv = input.uv;
+
+    return output;
+*/
 }
 
 static float3 gf3AmbientLightColor = float3(1.0f, 1.0f, 1.0f);

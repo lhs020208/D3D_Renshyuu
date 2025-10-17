@@ -216,87 +216,20 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 	memcpy(pMapped, &lightData, sizeof(LIGHT_CB));
 	m_pLightCB->Unmap(0, nullptr);
 
-	default_random_engine dre{ random_device{}() };
-	uniform_real_distribution<float> uid{ 0.0f,1.0f };
-
-	uniform_real_distribution<float> uid_x{ 0,100.0f };
-	uniform_real_distribution<float> uid_z{ 0,100.0f };
-	uniform_real_distribution<float> uid_rot{ 0,360.0f };
-
 	CMesh* pPlayerMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/unitychan.bin", 2);
 	m_pPlayer->SetMesh(0, pPlayerMesh);
 	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
 	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, -12.0f));
 
-	for (int i = 0; i < m_nTanks; i++)
-	{
-		float red = uid(dre);
-		float green = uid(dre);
-		float blue = uid(dre);
-
-		m_pTank[i] = nullptr;
-		m_pTank[i] = new CTankObject();
-		CMesh* pTankMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Tank.obj", 1);
-		m_pTank[i]->SetMesh(0,pTankMesh);
-		m_pTank[i]->SetShader(pShader);
-		m_pTank[i]->SetColor(XMFLOAT3(red, green, blue));
-		m_pTank[i]->SetPosition(uid_x(dre) - 50.0f, 0.0f, uid_z(dre) - 50.0f);
-		m_pTank[i]->Rotate(0.0f, uid_rot(dre), 0.0f);
-		m_pTank[i]->UpdateBoundingBox();
-
-		m_pTank[i]->bullet = new CGameObject();
-		CMesh* pMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/Bullet.obj", 1);
-		m_pTank[i]->bullet->SetMesh(0,pMesh);
-		m_pTank[i]->bullet->SetColor(XMFLOAT3(red, green, blue));
-		m_pTank[i]->bullet->SetPosition(-2.0f + 0.5f * i, 0.0f, 1.0f);
-		m_pTank[i]->bullet->SetShader(pShader);
-		m_pTank[i]->bullet->UpdateBoundingBox();
-
-		CCubeMesh* pCubeMesh = new CCubeMesh(pd3dDevice, pd3dCommandList, 0.25f, 0.25f, 0.25f);
-		m_pTank[i]->m_pExplosionObjects = new CExplosionObject();
-		m_pTank[i]->m_pExplosionObjects->SetMesh(0,pCubeMesh);
-		m_pTank[i]->m_pExplosionObjects->SetShader(pShader);
-		m_pTank[i]->m_pExplosionObjects->SetColor(XMFLOAT3(red, green, blue));
-		m_pTank[i]->m_pExplosionObjects->SetPosition(0.0f, 0.0f, 1.0f);
-		m_pTank[i]->m_pExplosionObjects->UpdateBoundingBox();
-
-		for (int j = 0; j < EXPLOSION_DEBRISES; j++) {
-			m_pTank[i]->m_pExplosionObjects->Draw[j] = false;
-		}
-
-		if (!m_pDefaultBoneCB) {
-			// 128개의 아이덴티티 행렬(스키닝 미사용 시에도 안전)
-			const UINT maxBones = 128;
-			std::vector<XMFLOAT4X4> id(maxBones);
-			for (auto& m : id) m = Matrix4x4::Identity(); // 본인 유틸 있으면 사용
-
-			auto Align256 = [](UINT sz) { return (sz + 255u) & ~255u; };
-			const UINT cbSize = Align256(sizeof(XMFLOAT4X4) * maxBones);
-
-			m_pDefaultBoneCB = CreateBufferResource(pd3dDevice, pd3dCommandList,
-				id.data(), cbSize,
-				D3D12_HEAP_TYPE_UPLOAD,
-				D3D12_RESOURCE_STATE_GENERIC_READ,
-				nullptr);
-		}
-	}
 }
 
 void CTankScene::ReleaseObjects()
 {
 	if (m_pd3dGraphicsRootSignature) m_pd3dGraphicsRootSignature->Release();
-	for (int i = 0; i < m_nTanks; i++) {
-		if (m_pTank[i]->bullet)delete m_pTank[i]->bullet;
-		if (m_pTank[i]->m_pExplosionObjects)delete m_pTank[i]->m_pExplosionObjects;
-		if (m_pTank[i])delete m_pTank[i];
-	}
 }
 void CTankScene::ReleaseUploadBuffers()
 {
-	for (int i = 0; i < m_nTanks; i++) {
-		if (m_pTank[i]) m_pTank[i]->ReleaseUploadBuffers();
-		if (m_pTank[i]->m_pExplosionObjects) m_pTank[i]->m_pExplosionObjects->ReleaseUploadBuffers();
-	}
+
 }
 
 
@@ -316,19 +249,8 @@ void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCa
 	// 렌더 시 바인딩
 	if (m_pLightCB)
 		pd3dCommandList->SetGraphicsRootConstantBufferView(3, m_pLightCB->GetGPUVirtualAddress());
-	if (m_pPlayer) m_pPlayer->Render(pd3dCommandList, pCamera);
 
-	for (int i = 0; i < m_nTanks; i++) {
-		
-		if (m_pTank[i]->IsExist()) {
-			if (m_pTank[i]->IsBlowingUp()) {
-				m_pTank[i]->m_pExplosionObjects->Render(pd3dCommandList, pCamera);
-			}
-			else {
-				m_pTank[i]->Render(pd3dCommandList, pCamera);
-			}
-		}
-	}
+	if (m_pPlayer) m_pPlayer->Render(pd3dCommandList, pCamera);
 }
 void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
@@ -349,12 +271,6 @@ void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM 
 			break;
 		case 'D':
 			if (m_pPlayer->move_x < 1)m_pPlayer->move_x += 1;
-			break;
-		case VK_SPACE:
-			for (int i = 0; i < 10; i++)
-				if (!m_pTank[i]->IsBlowingUp()) {
-					m_pTank[i]->PrepareExplosion();
-				}
 			break;
 		default:
 			break;
@@ -396,16 +312,6 @@ CGameObject* CTankScene::PickObjectPointedByCursor(int xClient, int yClient, CCa
 
 	float fNearestHitDistance = FLT_MAX;
 	CGameObject* pNearestObject = NULL;
-	for (int i = 0; i < m_nTanks; i++) {
-		if (m_pTank[i])
-		{
-			int hit = m_pTank[i]->PickObjectByRayIntersection(xmvPickPosition, xmmtxView, &fNearestHitDistance);
-			if (hit > 0)
-			{
-				pNearestObject = m_pTank[i];
-			}
-		}
-	}
 	return(pNearestObject);
 
 }
@@ -415,20 +321,6 @@ void CTankScene::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wPa
 
 void CTankScene::Animate(float fElapsedTime)
 {
-	for (int i = 0; i < m_nTanks; i++) {
-		if (m_pTank[i]) {
-
-			m_pTank[i]->Animate(fElapsedTime);
-			XMFLOAT3 xmf3Position = m_pTank[i]->GetPosition();
-
-			if (m_pTank[i]->IsBlowingUp()) {
-				for (int j = 0; j < EXPLOSION_DEBRISES; j++) {
-					m_pTank[i]->m_pExplosionObjects->m_pxmf4x4Transforms[j] = m_pTank[i]->m_pxmf4x4Transforms[j];
-					m_pTank[i]->m_pExplosionObjects->m_pxmf3SphereVectors[j] = m_pTank[i]->m_pxmf3SphereVectors[j];
-				}
-			}
-		}
-	}
 
 	XMFLOAT3 xmf3Position = m_pPlayer->GetPosition();
 	m_pPlayer->Animate(fElapsedTime);
