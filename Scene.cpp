@@ -23,9 +23,11 @@ void CScene::BuildObjects(ID3D12Device *pd3dDevice, ID3D12GraphicsCommandList *p
 
 ID3D12RootSignature *CScene::CreateGraphicsRootSignature(ID3D12Device *pd3dDevice)
 {
-	ID3D12RootSignature *pd3dGraphicsRootSignature = NULL;
+	ID3D12RootSignature* pd3dGraphicsRootSignature = NULL;
 
+	// **중요**: 파라미터 배열 전체를 0으로 초기화해서 미정의된 필드(garbage) 방지
 	D3D12_ROOT_PARAMETER pd3dRootParameters[5];
+	::ZeroMemory(pd3dRootParameters, sizeof(pd3dRootParameters));
 	pd3dRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	pd3dRootParameters[0].Constants.Num32BitValues = 4; //Time, ElapsedTime, xCursor, yCursor
 	pd3dRootParameters[0].Constants.ShaderRegister = 0; //Time
@@ -44,10 +46,9 @@ ID3D12RootSignature *CScene::CreateGraphicsRootSignature(ID3D12Device *pd3dDevic
 	pd3dRootParameters[2].Constants.RegisterSpace = 0;
 	pd3dRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	pd3dRootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-	pd3dRootParameters[3].Constants.Num32BitValues = 6; // float 6개 + 패딩 2개
-	pd3dRootParameters[3].Constants.ShaderRegister = 3; // b3 
-	pd3dRootParameters[3].Constants.RegisterSpace = 0;
+	pd3dRootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	pd3dRootParameters[3].Descriptor.ShaderRegister = 3;  // register(b3)
+	pd3dRootParameters[3].Descriptor.RegisterSpace = 0;
 	pd3dRootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	pd3dRootParameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV; // b4
@@ -58,7 +59,7 @@ ID3D12RootSignature *CScene::CreateGraphicsRootSignature(ID3D12Device *pd3dDevic
 	D3D12_ROOT_SIGNATURE_FLAGS d3dRootSignatureFlags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	D3D12_ROOT_SIGNATURE_DESC d3dRootSignatureDesc;
 	::ZeroMemory(&d3dRootSignatureDesc, sizeof(D3D12_ROOT_SIGNATURE_DESC));
-	d3dRootSignatureDesc.NumParameters = 4;
+	d3dRootSignatureDesc.NumParameters = 5;
 	d3dRootSignatureDesc.pParameters = pd3dRootParameters;
 	d3dRootSignatureDesc.NumStaticSamplers = 0;
 	d3dRootSignatureDesc.pStaticSamplers = NULL;
@@ -66,10 +67,29 @@ ID3D12RootSignature *CScene::CreateGraphicsRootSignature(ID3D12Device *pd3dDevic
 
 	ID3DBlob *pd3dSignatureBlob = NULL;
 	ID3DBlob *pd3dErrorBlob = NULL;
-	D3D12SerializeRootSignature(&d3dRootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &pd3dSignatureBlob, &pd3dErrorBlob);
-	pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), __uuidof(ID3D12RootSignature), (void **)&pd3dGraphicsRootSignature);
+	HRESULT hr = D3D12SerializeRootSignature(&d3dRootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &pd3dSignatureBlob, &pd3dErrorBlob);
+	if (FAILED(hr))
+	{
+		if (pd3dErrorBlob)
+		{
+			OutputDebugStringA((const char*)pd3dErrorBlob->GetBufferPointer()); // 에러 메시지 출력
+			pd3dErrorBlob->Release();
+		}
+		if (pd3dSignatureBlob) pd3dSignatureBlob->Release();
+		return nullptr; // 실패하면 null 반환
+	}
+
+	hr = pd3dDevice->CreateRootSignature(0, pd3dSignatureBlob->GetBufferPointer(), pd3dSignatureBlob->GetBufferSize(), __uuidof(ID3D12RootSignature), (void**)&pd3dGraphicsRootSignature);
+
 	if (pd3dSignatureBlob) pd3dSignatureBlob->Release();
 	if (pd3dErrorBlob) pd3dErrorBlob->Release();
+
+	if (FAILED(hr))
+	{
+		// CreateRootSignature 실패 로그
+		OutputDebugStringA("CreateRootSignature failed\n");
+		return nullptr;
+	}
 
 	return(pd3dGraphicsRootSignature);
 }
@@ -102,7 +122,15 @@ void CScene::Animate(float fTimeElapsed)
 
 void CScene::PrepareRender(ID3D12GraphicsCommandList* pd3dCommandList)
 {
-	pd3dCommandList->SetGraphicsRootSignature(m_pd3dGraphicsRootSignature);
+	if (m_pd3dGraphicsRootSignature)
+	{
+		pd3dCommandList->SetGraphicsRootSignature(m_pd3dGraphicsRootSignature);
+	}
+	else
+	{
+		OutputDebugStringA("Warning: m_pd3dGraphicsRootSignature is null in PrepareRender\n");
+		// (필요시 assert 또는 빠른 복구 로직 추가)
+	}
 }
 
 void CScene::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pCamera)
@@ -113,16 +141,81 @@ void CScene::BuildGraphicsRootSignature(ID3D12Device* pd3dDevice)
 	m_pd3dGraphicsRootSignature = CreateGraphicsRootSignature(pd3dDevice);
 }
 
+void CScene::CreateLightConstantBuffer(ID3D12Device* device)
+{
+	D3D12_HEAP_PROPERTIES heapProps = {};
+	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+	D3D12_RESOURCE_DESC resDesc = {};
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resDesc.Width = 256; // 256바이트 정렬
+	resDesc.Height = 1;
+	resDesc.DepthOrArraySize = 1;
+	resDesc.MipLevels = 1;
+	resDesc.SampleDesc.Count = 1;
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	device->CreateCommittedResource(
+		&heapProps, D3D12_HEAP_FLAG_NONE,
+		&resDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(&m_pLightCB)
+	);
+}
+
 //탱크 Scene////////////////////////////////////////////////////////////////////////////////////////////////
 CTankScene::CTankScene(CPlayer* pPlayer) : CScene(pPlayer) {}
+
+struct LIGHT_CB
+{
+	XMFLOAT3 LightDirection; float pad1 = 0.0f;
+	XMFLOAT3 LightColor;     float pad2 = 0.0f;
+};
+
 void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandList* pd3dCommandList)
 {
-	m_pd3dGraphicsRootSignature = CreateGraphicsRootSignature(pd3dDevice);
+	//m_pd3dGraphicsRootSignature = CreateGraphicsRootSignature(pd3dDevice);
 	CLightingShader* pShader = new CLightingShader();
 	pShader->CreateShader(pd3dDevice, m_pd3dGraphicsRootSignature);
 	pShader->CreateShaderVariables(pd3dDevice, pd3dCommandList);
-
 	using namespace std;
+
+	LIGHT_CB lightData = { m_xmf3LightDirection, 0.0f, m_xmf3LightColor, 0.0f };
+
+	D3D12_HEAP_PROPERTIES heapProps = {};
+	heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+	heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heapProps.CreationNodeMask = 1;
+	heapProps.VisibleNodeMask = 1;
+
+	// 리소스 디스크립터
+	D3D12_RESOURCE_DESC resDesc = {};
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resDesc.Alignment = 0;
+	resDesc.Width = 256;
+	resDesc.Height = 1;
+	resDesc.DepthOrArraySize = 1;
+	resDesc.MipLevels = 1;
+	resDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resDesc.SampleDesc.Count = 1;
+	resDesc.SampleDesc.Quality = 0;
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	// 리소스 생성
+	HRESULT hr = pd3dDevice->CreateCommittedResource(
+		&heapProps, D3D12_HEAP_FLAG_NONE,
+		&resDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr, IID_PPV_ARGS(&m_pLightCB)
+	);
+	if (FAILED(hr)) OutputDebugString(L"CreateCommittedResource for LightCB failed!\n");
+
+	// 데이터 복사 (한 번만)
+	void* pMapped = nullptr;
+	m_pLightCB->Map(0, nullptr, &pMapped);
+	memcpy(pMapped, &lightData, sizeof(LIGHT_CB));
+	m_pLightCB->Unmap(0, nullptr);
+
 	default_random_engine dre{ random_device{}() };
 	uniform_real_distribution<float> uid{ 0.0f,1.0f };
 
@@ -130,9 +223,8 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 	uniform_real_distribution<float> uid_z{ 0,100.0f };
 	uniform_real_distribution<float> uid_rot{ 0,360.0f };
 
-	//CMesh* pCubeMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/unity-chan/Unity-chan! Model/Art/Models/unitychan.fbx", 2);
-	CMesh* pCubeMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/unitychan.bin", 2);
-	m_pPlayer->SetMesh(0, pCubeMesh);
+	CMesh* pPlayerMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/unitychan.bin", 2);
+	m_pPlayer->SetMesh(0, pPlayerMesh);
 	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
 	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, -12.0f));
 
@@ -171,6 +263,22 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 		for (int j = 0; j < EXPLOSION_DEBRISES; j++) {
 			m_pTank[i]->m_pExplosionObjects->Draw[j] = false;
 		}
+
+		if (!m_pDefaultBoneCB) {
+			// 128개의 아이덴티티 행렬(스키닝 미사용 시에도 안전)
+			const UINT maxBones = 128;
+			std::vector<XMFLOAT4X4> id(maxBones);
+			for (auto& m : id) m = Matrix4x4::Identity(); // 본인 유틸 있으면 사용
+
+			auto Align256 = [](UINT sz) { return (sz + 255u) & ~255u; };
+			const UINT cbSize = Align256(sizeof(XMFLOAT4X4) * maxBones);
+
+			m_pDefaultBoneCB = CreateBufferResource(pd3dDevice, pd3dCommandList,
+				id.data(), cbSize,
+				D3D12_HEAP_TYPE_UPLOAD,
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr);
+		}
 	}
 }
 
@@ -190,6 +298,8 @@ void CTankScene::ReleaseUploadBuffers()
 		if (m_pTank[i]->m_pExplosionObjects) m_pTank[i]->m_pExplosionObjects->ReleaseUploadBuffers();
 	}
 }
+
+
 void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCamera)
 {
 	pCamera->SetViewportsAndScissorRects(pd3dCommandList);
@@ -202,7 +312,10 @@ void CTankScene::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pCa
 		m_xmf3LightColor.y,
 		m_xmf3LightColor.z, 
 	};
-	pd3dCommandList->SetGraphicsRoot32BitConstants(3, 6, light, 0);
+
+	// 렌더 시 바인딩
+	if (m_pLightCB)
+		pd3dCommandList->SetGraphicsRootConstantBufferView(3, m_pLightCB->GetGPUVirtualAddress());
 	if (m_pPlayer) m_pPlayer->Render(pd3dCommandList, pCamera);
 
 	for (int i = 0; i < m_nTanks; i++) {

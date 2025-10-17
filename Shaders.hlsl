@@ -28,11 +28,11 @@ cbuffer cbLightInfo : register(b3)
     float gf3LightColorX;
     float gf3LightColorY;
     float gf3LightColorZ;
-}
+};
 cbuffer cbBones : register(b4)
 {
     float4x4 gBoneTransforms[128];
-}
+};
 
 struct VS_INPUT
 {

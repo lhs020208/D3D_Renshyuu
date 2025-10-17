@@ -45,7 +45,7 @@ public:
 
 	ID3D12Device* GetDevice() const { return m_pd3dDevice; }
 	ID3D12GraphicsCommandList* GetCommandList() const { return m_pd3dCommandList; }
-private:
+public:
 	HINSTANCE					m_hInstance;
 	HWND						m_hWnd; 
 

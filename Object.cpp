@@ -118,7 +118,6 @@ void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandLi
 	XMFLOAT4X4 xmf4x4World;
 	XMStoreFloat4x4(&xmf4x4World, XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 16, &xmf4x4World, 0);
-
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 3, &m_xmf3Color, 16);
 }
 void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandList, XMFLOAT4X4* pxmf4x4World)
@@ -138,13 +137,24 @@ void CGameObject::Render(ID3D12GraphicsCommandList *pd3dCommandList, CCamera *pC
 {
 	OnPrepareRender();
 	UpdateShaderVariables(pd3dCommandList);
+	
+	
+	// 스키닝 버퍼가 있으면 그걸, 없으면 씬의 디폴트 본 CB를 b4에 항상 묶는다.
+	if (m_pd3dBoneCB) {
+		pd3dCommandList->SetGraphicsRootConstantBufferView(4, m_pd3dBoneCB->GetGPUVirtualAddress());
+	}
+	else {
+		// Scene 포인터 얻는 방법이 다르면 프로젝트 스타일에 맞게 가져오세요.
+		extern CGameFramework* g_pFramework;
+		CScene* scene = g_pFramework ? g_pFramework->GetDevice(), g_pFramework->m_pScene : nullptr;
+		if (scene) {
+			auto gpuAddr = scene->GetDefaultBoneCBAddress();
+			if (gpuAddr) pd3dCommandList->SetGraphicsRootConstantBufferView(4, gpuAddr);
+		}
+	}
+	
 
 	if (m_pShader) m_pShader->Render(pd3dCommandList, pCamera);
-
-	if (m_pAnimator && m_pd3dBoneCB)
-		pd3dCommandList->SetGraphicsRootConstantBufferView(4, m_pd3dBoneCB->GetGPUVirtualAddress());
-
-
 	if (m_ppMeshes)
 	{
 		for (int i = 0; i < m_nMeshes; i++)
@@ -159,6 +169,22 @@ void CGameObject::Render(ID3D12GraphicsCommandList* pd3dCommandList, CCamera* pC
 	OnPrepareRender();
 	UpdateShaderVariables(pd3dCommandList, pxmf4x4World);
 
+	
+	// 스키닝 버퍼가 있으면 그걸, 없으면 씬의 디폴트 본 CB를 b4에 항상 묶는다.
+	if (m_pd3dBoneCB) {
+		pd3dCommandList->SetGraphicsRootConstantBufferView(4, m_pd3dBoneCB->GetGPUVirtualAddress());
+	}
+	else {
+		// Scene 포인터 얻는 방법이 다르면 프로젝트 스타일에 맞게 가져오세요.
+		extern CGameFramework* g_pFramework;
+		CScene* scene = g_pFramework ? g_pFramework->GetDevice(), g_pFramework->m_pScene : nullptr;
+		if (scene) {
+			auto gpuAddr = scene->GetDefaultBoneCBAddress();
+			if (gpuAddr) pd3dCommandList->SetGraphicsRootConstantBufferView(4, gpuAddr);
+		}
+	}
+	
+	
 	if (m_pShader) m_pShader->Render(pd3dCommandList, pCamera);
 	if (m_ppMeshes)
 	{
