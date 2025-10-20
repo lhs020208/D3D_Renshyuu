@@ -113,6 +113,7 @@ public:
 		int parentIndex = -1;
 		XMFLOAT4X4 offsetMatrix;
 	};
+	const std::vector<FBXBone>& GetBones() const { return m_FbxBones; }
 protected:
 	std::vector<FBXBone>         m_FbxBones;
 	std::vector<FBXVertexWeight> m_FbxWeights;

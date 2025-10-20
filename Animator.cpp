@@ -64,16 +64,16 @@ void CAnimator::Update(float dt)
     time += dt;
     clip->Evaluate(time, bones); // local 채움
 
+
     // 계층 누적: global = (parent==-1 ? local : local * global[parent])
-    for (size_t i = 0; i < bones.size(); ++i)
-    {
-        XMMATRIX L = XMLoadFloat4x4(&bones[i].local);
-        if (bones[i].parent < 0) {
-            XMStoreFloat4x4(&bones[i].global, L);
+    for (int idx : order) {
+        XMMATRIX L = XMLoadFloat4x4(&bones[idx].local);
+        if (bones[idx].parent < 0) {
+            XMStoreFloat4x4(&bones[idx].global, L);
         }
         else {
-            XMMATRIX P = XMLoadFloat4x4(&bones[bones[i].parent].global);
-            XMStoreFloat4x4(&bones[i].global, L * P);
+            XMMATRIX P = XMLoadFloat4x4(&bones[bones[idx].parent].global);
+            XMStoreFloat4x4(&bones[idx].global, XMMatrixMultiply(P, L));
         }
     }
 }
@@ -92,4 +92,72 @@ std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
         XMStoreFloat4x4(&out[i], XMMatrixTranspose(M));
     }
     return out;
+}
+
+CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>& meshBones) {
+    std::ifstream in(path, std::ios::binary);
+    uint32_t magic, ver, boneCount; in.read((char*)&magic, 4); in.read((char*)&ver, 4); in.read((char*)&boneCount, 4);
+    std::vector<std::string> animBoneNames(boneCount);
+    std::vector<int> animParent(boneCount);
+    for (uint32_t i = 0; i < boneCount; ++i) {
+        uint32_t nlen; in.read((char*)&nlen, 4); animBoneNames[i].resize(nlen);
+        in.read(animBoneNames[i].data(), nlen);
+        in.read((char*)&animParent[i], 4);
+    }
+    uint32_t animCount; in.read((char*)&animCount, 4);
+
+    std::unordered_map<std::string, int> meshIndexByName;
+    for (int i = 0; i < (int)meshBones.size(); ++i) meshIndexByName[meshBones[i].name] = i;
+    std::vector<int> mapAnimToMesh(boneCount, -1);
+    for (uint32_t i = 0; i < boneCount; ++i) {
+        auto it = meshIndexByName.find(animBoneNames[i]);
+        if (it != meshIndexByName.end()) mapAnimToMesh[i] = it->second;
+    }
+
+    uint32_t nlen; std::string aName; float fps; uint32_t numFrames;
+    in.read((char*)&nlen, 4); aName.resize(nlen); in.read(aName.data(), nlen);
+    in.read((char*)&fps, 4); in.read((char*)&numFrames, 4);
+
+    auto* clip = new CAnimationClip();
+    clip->tracks.resize(meshBones.size());
+    clip->duration = (fps > 0.f) ? (numFrames / fps) : 0.f;
+
+    for (uint32_t f = 0; f < numFrames; ++f) {
+        float t = (fps > 0.f) ? (f / fps) : 0.f;
+        for (uint32_t ai = 0; ai < boneCount; ++ai) {
+            float T[3], Rdeg[3], S[3];
+            in.read((char*)T, sizeof(float) * 3);
+            in.read((char*)Rdeg, sizeof(float) * 3);
+            in.read((char*)S, sizeof(float) * 3);
+
+            int mi = mapAnimToMesh[ai];
+            if (mi < 0) continue;
+
+            // ↓ 이 위치에서 Keyframe k 선언/대입
+            Keyframe k{};
+            k.t = t;
+            const float UNIT = 0.01f;                // 단위 스케일 (메시와 일치)
+            k.T = XMFLOAT3(T[0] * UNIT, T[1] * UNIT, T[2] * UNIT);
+
+            // degrees -> quaternion
+            const float D2R = XM_PI / 180.f;
+            XMVECTOR q = XMQuaternionRotationRollPitchYaw(Rdeg[0] * D2R, Rdeg[1] * D2R, Rdeg[2] * D2R);
+            XMStoreFloat4(&k.R, q);
+
+            k.S = XMFLOAT3(S[0], S[1], S[2]);
+            clip->tracks[mi].keys.push_back(k);
+        }
+    }
+    return clip;
+}
+
+void CAnimator::BuildParentFirstOrder() {
+    order.clear();
+    const int n = (int)bones.size();
+    std::function<void(int)> dfs = [&](int u) {
+        order.push_back(u);                    // 부모 먼저
+        for (int i = 0; i < n; ++i)
+            if (bones[i].parent == u) dfs(i);  // 자식들
+        };
+    for (int i = 0; i < n; ++i) if (bones[i].parent < 0) dfs(i); // 모든 루트에서 시작
 }

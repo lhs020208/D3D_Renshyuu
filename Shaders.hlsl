@@ -29,16 +29,18 @@ cbuffer cbLightInfo : register(b3)
     float gf3LightColorY;
     float gf3LightColorZ;
 };
+
+static const uint MAX_BONES = 256;
 cbuffer cbBones : register(b4)
 {
-    float4x4 gBoneTransforms[128];
+    float4x4 gBoneTransforms[MAX_BONES];
 };
 
 struct VS_INPUT
 {
     float3 position : POSITION;
     float3 normal : NORMAL;
-    float2 uv : TEXTURECOORD;
+    float2 uv : TEXCOORD0;
     uint4 boneIndices : BLENDINDICES; // 추가
     float4 boneWeights : BLENDWEIGHT; // 추가
 };
@@ -49,7 +51,7 @@ struct VS_OUTPUT
 	float3		positionW : POSITION;
 	float3		normal : NORMAL0;
 	float3		normalW : NORMAL1;
-	float2		uv : TEXTURECOORD;
+    float2      uv : TEXCOORD0;
 };
 float4 VSPseudoLighting(float4 position : POSITION) : SV_POSITION
 {
@@ -58,38 +60,31 @@ float4 VSPseudoLighting(float4 position : POSITION) : SV_POSITION
 
 VS_OUTPUT VSLighting(VS_INPUT input)
 {
-    
-	VS_OUTPUT output;
-
-	output.positionW = mul(float4(input.position, 1.0f), gmtxWorld).xyz;
-	output.positionH = mul(mul(float4(output.positionW, 1.0f), gmtxView), gmtxProjection);
-	output.normalW = mul(float4(input.normal, 0.0f), gmtxWorld).xyz;
-	output.normal = input.normal;
-	output.uv = input.uv;
-
-	return(output);
-    /*
     VS_OUTPUT output;
 
-    //스키닝 적용
-    float4 skinnedPos = float4(0, 0, 0, 0);
-    float3 skinnedNormal = float3(0, 0, 0);
+    float4 w = input.boneWeights;
+    w /= max(dot(w, 1.0.xxxx), 1e-6); // 가중치 정규화
 
-    for (int i = 0; i < 4; ++i)
-    {
-        uint idx = input.boneIndices[i];
-        float w = input.boneWeights[i];
-        if (w > 0)
-        {
-            if (any(isnan(skinnedPos)) || any(isinf(skinnedPos)))
-                skinnedPos = float4(0, 0, 0, 1);
-            
-            skinnedPos += mul(gBoneTransforms[idx], float4(input.position, 1.0f)) * w;
-            skinnedNormal += mul((float3x3) gBoneTransforms[idx], input.normal) * w;
-        }
-    }
-
-    //이후 기존 월드변환 적용
+    uint4 bi = input.boneIndices;
+    bi = min(bi, (uint4) (MAX_BONES - 1)); // OOB 방지
+    
+    // 4개 본 가중합 행렬 (GetSkinMatrices()에서 (global*inverseBind)^T 로 업로드했다고 가정)
+    float4x4 BM =
+      gBoneTransforms[bi.x] * w.x
+    + gBoneTransforms[bi.y] * w.y
+    + gBoneTransforms[bi.z] * w.z
+    + gBoneTransforms[bi.w] * w.w;
+    
+    //BM = gBoneTransforms[0];
+    
+    // 스키닝(모델 공간)
+    
+    float4 skinnedPos = mul(float4(input.position, 1), BM);
+    float3 skinnedNormal = mul(input.normal, (float3x3) BM);
+    //float4 skinnedPos = float4(input.position, 1);
+    //float3 skinnedNormal = input.normal;
+    
+    // 이후 월드/뷰/프로젝션 적용
     float4 worldPos = mul(skinnedPos, gmtxWorld);
     output.positionW = worldPos.xyz;
     output.positionH = mul(mul(worldPos, gmtxView), gmtxProjection);
@@ -99,7 +94,6 @@ VS_OUTPUT VSLighting(VS_INPUT input)
     output.uv = input.uv;
 
     return output;
-*/
 }
 
 static float3 gf3AmbientLightColor = float3(1.0f, 1.0f, 1.0f);
@@ -163,6 +157,8 @@ inline float NDFBlinnPhongNormalizedTerm(float NdotH, float fRoughnessToSpecPowe
 
 float4 PSLighting(VS_OUTPUT input) : SV_TARGET
 {
+    //return float4(input.uv, 0, 1);
+    
     float3 gfLightDirection = float3(gfLightDirectionX, gfLightDirectionY, gfLightDirectionZ);
     float3 gf3LightColor = float3(gf3LightColorX, gf3LightColorY, gf3LightColorZ);
 	

@@ -218,8 +218,15 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 
 	CMesh* pPlayerMesh = new CMesh(pd3dDevice, pd3dCommandList, "Models/unitychan.bin", 2);
 	m_pPlayer->SetMesh(0, pPlayerMesh);
+	m_pPlayer->EnableSkinningFromMesh(pPlayerMesh);
+
+	m_pPlayer->CreateShaderVariables(pd3dDevice, pd3dCommandList);
+
+	CAnimationClip* clip = LoadAnimBIN("Models/unitychan_WAIT01.bin", pPlayerMesh->GetBones());
+	m_pPlayer->SetAnimationClip(clip);
+
 	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
-	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, -12.0f));
+	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, 12.0f));
 
 }
 
@@ -321,7 +328,6 @@ void CTankScene::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wPa
 
 void CTankScene::Animate(float fElapsedTime)
 {
-
 	XMFLOAT3 xmf3Position = m_pPlayer->GetPosition();
 	m_pPlayer->Animate(fElapsedTime);
 }

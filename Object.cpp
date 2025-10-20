@@ -72,7 +72,7 @@ void CGameObject::SetShader(CShader *pShader)
 
 void CGameObject::Animate(float fTimeElapsed)
 {
-	if (m_pAnimator)
+	if (m_pAnimator && m_pd3dBoneCB)
 	{
 		m_pAnimator->Update(fTimeElapsed);
 		auto boneMats = m_pAnimator->GetSkinMatrices();
@@ -119,6 +119,13 @@ void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandLi
 	XMStoreFloat4x4(&xmf4x4World, XMMatrixTranspose(XMLoadFloat4x4(&m_xmf4x4World)));
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 16, &xmf4x4World, 0);
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 3, &m_xmf3Color, 16);
+#ifdef ENABLE_ANIM_SKINNING
+	if (m_pd3dBoneCB) {
+		// cbBones : register(b4) 에 매핑된 루트 파라미터 슬롯(예: 4번)을 사용
+		pd3dCommandList->SetGraphicsRootConstantBufferView(/*ROOT_SLOT_BONES=*/4,
+			m_pd3dBoneCB->GetGPUVirtualAddress());
+	}
+#endif
 }
 void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandList, XMFLOAT4X4* pxmf4x4World)
 {
@@ -126,6 +133,13 @@ void CGameObject::UpdateShaderVariables(ID3D12GraphicsCommandList* pd3dCommandLi
 	XMStoreFloat4x4(&xmf4x4World, XMMatrixTranspose(XMLoadFloat4x4(pxmf4x4World)));
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 16, &xmf4x4World, 0);
 	pd3dCommandList->SetGraphicsRoot32BitConstants(1, 3, &m_xmf3Color, 16);
+#ifdef ENABLE_ANIM_SKINNING
+	if (m_pd3dBoneCB) {
+		// cbBones : register(b4) 에 매핑된 루트 파라미터 슬롯(예: 4번)을 사용
+		pd3dCommandList->SetGraphicsRootConstantBufferView(/*ROOT_SLOT_BONES=*/4,
+			m_pd3dBoneCB->GetGPUVirtualAddress());
+	}
+#endif
 }
 
 void CGameObject::ReleaseShaderVariables()
@@ -343,5 +357,37 @@ void CGameObject::SetRotationTransform(XMFLOAT4X4* pmxf4x4Transform)
 	m_xmf4x4World._31 = pmxf4x4Transform->_31; m_xmf4x4World._32 = pmxf4x4Transform->_32; m_xmf4x4World._33 = pmxf4x4Transform->_33;
 }
 
+void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
+{
+	if (!mesh) return;
+	if (!m_pAnimator) m_pAnimator = new CAnimator();
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	const auto& bones = mesh->GetBones(); // Mesh.h에 추가한 getter
+	std::vector<BoneTransform> skel(bones.size());
+	constexpr float UNIT = 0.01f;
+	for (size_t i = 0; i < bones.size(); ++i)
+	{
+		skel[i].parent = bones[i].parentIndex;
+		skel[i].inverseBind = bones[i].offsetMatrix; // inverse bind (BIN에 저장된 것)
+		XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
+
+		//skel[i].inverseBind._41 *= UNIT;
+		//skel[i].inverseBind._42 *= UNIT;
+		//skel[i].inverseBind._43 *= UNIT;
+		
+		//XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
+		//XMStoreFloat4x4(&skel[i].global, XMMatrixIdentity());
+
+		XMMATRIX IB = XMLoadFloat4x4(&skel[i].inverseBind);
+		XMMATRIX Gbind = XMMatrixInverse(nullptr, IB);
+		XMStoreFloat4x4(&skel[i].global, Gbind);
+	}
+	m_pAnimator->SetSkeleton(skel);
+}
+
+void CGameObject::SetAnimationClip(CAnimationClip* clip)
+{
+	if (!clip) return;
+	if (!m_pAnimator) m_pAnimator = new CAnimator();
+	m_pAnimator->SetClip(clip); // time=0으로 리셋
+}

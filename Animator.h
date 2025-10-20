@@ -1,4 +1,5 @@
 #pragma once
+#include "Mesh.h"
 #include <vector>
 #include <DirectXMath.h>
 
@@ -29,6 +30,7 @@ public:
     // time에 대한 본별 local(S*R*T) 행렬을 out[i].local에 기록
     void Evaluate(float time, std::vector<BoneTransform>& out) const;
 };
+CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>& meshBones);
 
 class CAnimator {
 public:
@@ -42,4 +44,8 @@ public:
     std::vector<XMFLOAT4X4> GetSkinMatrices() const; // skin = global * inverseBind (셰이더용)
 
     size_t GetBoneCount() const { return bones.size(); }
+
+private:
+    std::vector<int> order;        // parent-first bone order
+    void BuildParentFirstOrder();
 };

@@ -269,6 +269,11 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 		in.read(bone.name.data(), nameLen);
 		in.read(reinterpret_cast<char*>(&bone.parentIndex), sizeof(int));
 		in.read(reinterpret_cast<char*>(&bone.offsetMatrix), sizeof(float) * 16);
+		
+		//XMMATRIX M = XMLoadFloat4x4(&bone.offsetMatrix);
+		//M = XMMatrixTranspose(M);
+		//XMStoreFloat4x4(&bone.offsetMatrix, M);
+		
 		m_FbxBones.push_back(bone);
 	}
 	in.close();
@@ -298,6 +303,7 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	struct VertexBufferData {
 		XMFLOAT3 pos;
 		XMFLOAT3 normal;
+		XMFLOAT2 uv;
 		UINT boneIndices[4];
 		float boneWeights[4];
 	};
@@ -306,6 +312,7 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	for (UINT i = 0; i < m_nVertices; i++) {
 		vb[i].pos = vtx[i].pos;
 		vb[i].normal = vtx[i].normal;
+		vb[i].uv = vtx[i].uv;
 		memcpy(vb[i].boneIndices, vtx[i].boneIndices, sizeof(UINT) * 4);
 		memcpy(vb[i].boneWeights, vtx[i].boneWeights, sizeof(float) * 4);
 	}
