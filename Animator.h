@@ -38,7 +38,7 @@ public:
     CAnimationClip* clip = nullptr;
     float time = 0.f;
 
-    void  SetSkeleton(const std::vector<BoneTransform>& s) { bones = s; }
+    void  SetSkeleton(const std::vector<BoneTransform>& s) { bones = s; BuildParentFirstOrder();}
     void  SetClip(CAnimationClip* c) { clip = c; time = 0.f; }
     void  Update(float dt);                      // time 누적 + Evaluate + 계층 전파
     std::vector<XMFLOAT4X4> GetSkinMatrices() const; // skin = global * inverseBind (셰이더용)

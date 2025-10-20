@@ -7,6 +7,8 @@
 #include "Shader.h"
 #include "GameFramework.h"
 
+#define ENABLE_ANIM_SKINNING
+
 inline float RandF(float fMin, float fMax)
 {
 	return(fMin + ((float)rand() / (float)RAND_MAX) * (fMax - fMin));
