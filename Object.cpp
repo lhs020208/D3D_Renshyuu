@@ -112,6 +112,14 @@ void CGameObject::CreateShaderVariables(ID3D12Device* pd3dDevice,
 				nullptr);
 		}
 	}
+	if (m_pd3dBoneCB) {
+		D3D12_RANGE r{ 0,0 };
+		void* p = nullptr; m_pd3dBoneCB->Map(0, &r, &p);
+		XMFLOAT4X4 I; XMStoreFloat4x4(&I, XMMatrixIdentity());
+		std::vector<XMFLOAT4X4> init(m_nBoneCount, I);
+		memcpy(p, init.data(), sizeof(XMFLOAT4X4) * m_nBoneCount);
+		m_pd3dBoneCB->Unmap(0, nullptr);
+	}
 #endif
 }
 
@@ -366,23 +374,19 @@ void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
 
 	const auto& bones = mesh->GetBones(); // Mesh.h에 추가한 getter
 	std::vector<BoneTransform> skel(bones.size());
-	constexpr float UNIT = 0.01f;
+
 	for (size_t i = 0; i < bones.size(); ++i)
 	{
 		skel[i].parent = bones[i].parentIndex;
 		skel[i].inverseBind = bones[i].offsetMatrix; // inverse bind (BIN에 저장된 것)
-		XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
 
-		//skel[i].inverseBind._41 *= UNIT;
-		//skel[i].inverseBind._42 *= UNIT;
-		//skel[i].inverseBind._43 *= UNIT;
-		
 		//XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
 		//XMStoreFloat4x4(&skel[i].global, XMMatrixIdentity());
 
 		XMMATRIX IB = XMLoadFloat4x4(&skel[i].inverseBind);
 		XMMATRIX Gbind = XMMatrixInverse(nullptr, IB);
 		XMStoreFloat4x4(&skel[i].global, Gbind);
+		XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
 	}
 	m_pAnimator->SetSkeleton(skel);
 }
