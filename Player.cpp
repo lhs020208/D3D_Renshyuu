@@ -315,7 +315,6 @@ void CPersonPlayer::Animate(float fElapsedTime)
 	SetPosition(now_pos.x + moveVec.x, now_pos.y, now_pos.z + moveVec.z);
 
 	CPersonPlayer::OnPrepareRender();
-
 	UpdateBoundingBox();
 }
 

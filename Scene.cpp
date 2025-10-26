@@ -223,10 +223,12 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 	m_pPlayer->CreateShaderVariables(pd3dDevice, pd3dCommandList);
 
 	CAnimationClip* clip = LoadAnimBIN("Models/unitychan_JUMP00.bin", pPlayerMesh->GetBones());
+
+
 	m_pPlayer->SetAnimationClip(clip);
 
 	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
-	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, 12.0f));
+	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 6.0f, -12.0f));
 
 }
 

@@ -313,3 +313,13 @@ namespace Plane
 		return(xmf4Result);
 	}
 }
+
+#include <cstdarg>
+
+inline void LOGF(const char* fmt, ...) {
+	char buf[1024];
+	va_list ap; va_start(ap, fmt);
+	_vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, ap);
+	va_end(ap);
+	OutputDebugStringA(buf);          // 반드시 \r\n 포함해서 호출
+}
