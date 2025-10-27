@@ -110,7 +110,7 @@ std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
 }
 CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>& meshBones) {
     std::ifstream in(path, std::ios::binary);
-    if (!in.is_open()) return nullptr;
+    if (!in.is_open()) return nullptr; 
 
     // --- header ---
     uint32_t magic = 0, ver = 0, boneCount = 0;
@@ -196,7 +196,8 @@ CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>&
             clip->tracks[mi].keys.push_back(k);
         }
     }
-
+    int matched = (int)std::count_if(mapAnimToMesh.begin(), mapAnimToMesh.end(), [](int i) {return i >= 0; });
+    LOGF("[ANIM] bones=%u matched=%d\r\n", boneCount, matched);  // matched==0 이면 원인 확정
     return clip;
 }
 
