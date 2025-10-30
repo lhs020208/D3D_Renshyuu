@@ -225,7 +225,7 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 	CAnimationClip* clip = LoadAnimBIN("Models/unitychan_WAIT00.bin", pPlayerMesh->GetBones());
 
 
-	m_pPlayer->SetAnimationClip(clip);
+	//m_pPlayer->SetAnimationClip(clip);
 
 	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
 	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 20.0f, -360.0f));

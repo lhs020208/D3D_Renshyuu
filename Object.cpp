@@ -84,13 +84,6 @@ void CGameObject::Animate(float fTimeElapsed)
 		m_pd3dBoneCB->Map(0, &range, &pData);
 		memcpy(pData, boneMats.data(), sizeof(XMFLOAT4X4) * boneMats.size());
 		m_pd3dBoneCB->Unmap(0, nullptr);
-		int i = 0;
-		LOGF("[PAL]%d m00=%.3f m03=%.3f\r\n", i, boneMats[i]._11, boneMats[i]._14);
-
-		static XMFLOAT4X4 prev0{};
-		//LOGF("[PAL] m00=%.3f m03=%.3f\r\n", boneMats[0]._11, boneMats[0]._14); // 0번본 일부
-		// prev와 비교해 값이 변하는지 보면 ‘업데이트 중’인지 바로 확인됨
-		prev0 = boneMats[0];
 	}
 }
 
@@ -397,8 +390,16 @@ void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
 		XMMATRIX Gbind = XMMatrixInverse(nullptr, IB);
 		XMStoreFloat4x4(&skel[i].global, Gbind);
 		XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
+
+		XMFLOAT4X4 I, IBxG; XMStoreFloat4x4(&IBxG, IB * Gbind);
+		XMFLOAT4X4 ID; XMStoreFloat4x4(&ID, XMMatrixIdentity());
+		float err = MaxAbsDiff(IBxG, ID);
+		if (err > 1e-3f) {
+			LOGF("[BIND] bone[%zu]=%s IB*Gbind != I, maxAbsErr=%.6f\r\n", i, bones[i].name.c_str(), err);
+		}
 	}
 	m_pAnimator->SetSkeleton(skel);
+	LOGF("[SKIN] meshBones=%zu, shaderLimit=128\r\n", bones.size());   // 128은 HLSL gBoneTransforms 크기
 }
 
 
@@ -407,5 +408,4 @@ void CGameObject::SetAnimationClip(CAnimationClip* clip)
 	if (!clip) return;
 	if (!m_pAnimator) m_pAnimator = new CAnimator();
 	m_pAnimator->SetClip(clip); // time=0으로 리셋
-	LOGF("[Obj] SetClip: %p\r\n", clip);
 }

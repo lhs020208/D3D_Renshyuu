@@ -327,3 +327,24 @@ inline void LOGF(const char* fmt, ...) {
 	va_end(ap);
 	OutputDebugStringA(buf);          // 반드시 \r\n 포함해서 호출
 }
+// 공용 유틸 (어디든 한 곳에)
+static inline void DumpM(const char* tag, const XMFLOAT4X4& m) {
+	LOGF("%s | % .5f % .5f % .5f % .5f | % .5f % .5f % .5f % .5f | % .5f % .5f % .5f % .5f | % .5f % .5f % .5f % .5f\r\n",
+		tag, m._11, m._12, m._13, m._14, m._21, m._22, m._23, m._24, m._31, m._32, m._33, m._34, m._41, m._42, m._43, m._44);
+}
+static inline void DumpTRS(const char* tag, const XMFLOAT4X4& M) {
+	XMMATRIX x = XMLoadFloat4x4(&M);
+	XMVECTOR S, R, T; XMMatrixDecompose(&S, &R, &T, x);
+	XMFLOAT3 t, s; XMFLOAT4 q;
+	XMStoreFloat3(&t, T); XMStoreFloat3(&s, S); XMStoreFloat4(&q, R);
+	float qlen = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+	LOGF("%s T=(%.5f,%.5f,%.5f)  S=(%.5f,%.5f,%.5f)  Q=(%.5f,%.5f,%.5f,%.5f)|len=%.5f\r\n",
+		tag, t.x, t.y, t.z, s.x, s.y, s.z, q.x, q.y, q.z, q.w, qlen);
+}
+static inline float MaxAbsDiff(const XMFLOAT4X4& A, const XMFLOAT4X4& B) {
+	const float* a = &A._11; const float* b = &B._11; float e = 0.f;
+	for (int i = 0; i < 16; i++) e = max(e, fabsf(a[i] - b[i])); return e;
+}
+static inline bool HasNaNInf(const XMFLOAT4X4& M) {
+	const float* a = &M._11; for (int i = 0; i < 16; i++) if (!isfinite(a[i])) return true; return false;
+}

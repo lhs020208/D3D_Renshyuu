@@ -84,6 +84,7 @@ void CAnimator::Update(float dt)
             XMStoreFloat4x4(&bones[i].local, Lbd);
         }
     }
+
     const int n = (int)bones.size();
     std::vector<char> vis(n, 0);
     std::function<void(int)> Build = [&](int i) {
@@ -101,6 +102,7 @@ void CAnimator::Update(float dt)
         vis[i] = 1;
         };
     for (int i = 0; i < n; ++i) Build(i);
+
 }
 
 std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
@@ -219,6 +221,15 @@ CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>&
         }
     }
     LOGF("[ANIM] dbgIdx=%d\r\n", dbgIdx);
+
+    LOGF("[ANIM] name=%s fps=%.3f frames=%u duration=%.3f\r\n", aName.c_str(), fps, numFrames, (numFrames > 1) ? ((numFrames - 1) / fps) : 0.f);
+    int unmapped = 0;
+    for (uint32_t i = 0; i < boneCount; i++) if (mapAnimToMesh[i] < 0) unmapped++;
+    LOGF("[ANIM] boneCount=%u matched=%d unmapped=%d\r\n", boneCount, matched, unmapped);
+    for (uint32_t i = 0, cnt = 0; i < boneCount && cnt < 5; i++) if (mapAnimToMesh[i] < 0) {
+        LOGF("[ANIM] UNMAPPED %u: %s\r\n", i, animBoneNames[i].c_str()); cnt++;
+    }
+
     return clip;
 }
 
