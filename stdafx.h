@@ -215,6 +215,10 @@ namespace Vector4
 		return(xmf4Result);
 	}
 }
+static inline XMMATRIX ToLH(const XMMATRIX& M) {
+	static const XMMATRIX C = XMMatrixScaling(1.f, 1.f, -1.f);
+	return C * M * C;
+}
 
 namespace Matrix4x4
 {

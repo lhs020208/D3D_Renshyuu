@@ -84,6 +84,13 @@ void CGameObject::Animate(float fTimeElapsed)
 		m_pd3dBoneCB->Map(0, &range, &pData);
 		memcpy(pData, boneMats.data(), sizeof(XMFLOAT4X4) * boneMats.size());
 		m_pd3dBoneCB->Unmap(0, nullptr);
+		int i = 0;
+		LOGF("[PAL]%d m00=%.3f m03=%.3f\r\n", i, boneMats[i]._11, boneMats[i]._14);
+
+		static XMFLOAT4X4 prev0{};
+		//LOGF("[PAL] m00=%.3f m03=%.3f\r\n", boneMats[0]._11, boneMats[0]._14); // 0번본 일부
+		// prev와 비교해 값이 변하는지 보면 ‘업데이트 중’인지 바로 확인됨
+		prev0 = boneMats[0];
 	}
 }
 
@@ -367,23 +374,26 @@ void CGameObject::SetRotationTransform(XMFLOAT4X4* pmxf4x4Transform)
 	m_xmf4x4World._31 = pmxf4x4Transform->_31; m_xmf4x4World._32 = pmxf4x4Transform->_32; m_xmf4x4World._33 = pmxf4x4Transform->_33;
 }
 
+// Object.cpp
 void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
 {
 	if (!mesh) return;
 	if (!m_pAnimator) m_pAnimator = new CAnimator();
 
-	const auto& bones = mesh->GetBones(); // Mesh.h에 추가한 getter
+	const auto& bones = mesh->GetBones();
 	std::vector<BoneTransform> skel(bones.size());
 
 	for (size_t i = 0; i < bones.size(); ++i)
 	{
 		skel[i].parent = bones[i].parentIndex;
-		skel[i].inverseBind = bones[i].offsetMatrix; // inverse bind (BIN에 저장된 것)
+		skel[i].inverseBind = bones[i].offsetMatrix; // inverse bind (BIN)
 
-		//XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
-		//XMStoreFloat4x4(&skel[i].global, XMMatrixIdentity());
-
+		// ★ FBX(RH) -> DX(LH) 기준축 통일: inverseBind에 1회만 적용
 		XMMATRIX IB = XMLoadFloat4x4(&skel[i].inverseBind);
+		IB = ToLH(IB);
+		XMStoreFloat4x4(&skel[i].inverseBind, IB);
+
+		// 바인드 전역행렬(Gbind) 갱신
 		XMMATRIX Gbind = XMMatrixInverse(nullptr, IB);
 		XMStoreFloat4x4(&skel[i].global, Gbind);
 		XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
@@ -391,9 +401,11 @@ void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
 	m_pAnimator->SetSkeleton(skel);
 }
 
+
 void CGameObject::SetAnimationClip(CAnimationClip* clip)
 {
 	if (!clip) return;
 	if (!m_pAnimator) m_pAnimator = new CAnimator();
 	m_pAnimator->SetClip(clip); // time=0으로 리셋
+	LOGF("[Obj] SetClip: %p\r\n", clip);
 }

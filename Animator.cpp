@@ -17,6 +17,7 @@ static inline void LerpKey(const Keyframe& k0, const Keyframe& k1, float t01,
     XMStoreFloat3(&S, XMVectorLerp(XMLoadFloat3(&k0.S), XMLoadFloat3(&k1.S), t01));
 }
 
+// Animator.cpp
 void CAnimationClip::Evaluate(float time, std::vector<BoneTransform>& out) const
 {
     if (tracks.empty()) return;
@@ -32,17 +33,21 @@ void CAnimationClip::Evaluate(float time, std::vector<BoneTransform>& out) const
             XMStoreFloat4x4(&out[i].local, XMMatrixIdentity());
             continue;
         }
+
         if (tr.keys.size() == 1) {
             const auto& k = tr.keys[0];
-            XMStoreFloat4x4(&out[i].local, ComposeTRS(k.T, k.R, k.S));
+            XMMATRIX M = ComposeTRS(k.T, k.R, k.S);
+            XMStoreFloat4x4(&out[i].local, ToLH(M));     // 좌표계 통일
             continue;
         }
+
         // 구간 탐색
         size_t k = 0;
         while (k + 1 < tr.keys.size() && tr.keys[k + 1].t <= t) ++k;
         if (k + 1 >= tr.keys.size()) { // 마지막 구간 넘음 -> 마지막 키 유지
             const auto& last = tr.keys.back();
-            XMStoreFloat4x4(&out[i].local, ComposeTRS(last.T, last.R, last.S));
+            XMMATRIX M = ComposeTRS(last.T, last.R, last.S);
+            XMStoreFloat4x4(&out[i].local, ToLH(M));     
             continue;
         }
 
@@ -53,9 +58,11 @@ void CAnimationClip::Evaluate(float time, std::vector<BoneTransform>& out) const
 
         XMFLOAT3 T; XMFLOAT4 R; XMFLOAT3 S;
         LerpKey(k0, k1, a, T, R, S);
-        XMStoreFloat4x4(&out[i].local, ComposeTRS(T, R, S));
+        XMMATRIX M = ComposeTRS(T, R, S);
+        XMStoreFloat4x4(&out[i].local, ToLH(M));         
     }
 }
+
 
 void CAnimator::Update(float dt)
 {
@@ -64,19 +71,6 @@ void CAnimator::Update(float dt)
     time += dt;
     clip->Evaluate(time, bones); // local 채움
 
-    /*
-    // 계층 누적: global = (parent==-1 ? local : local * global[parent])
-    for (int idx : order) {
-        XMMATRIX L = XMLoadFloat4x4(&bones[idx].local);
-        if (bones[idx].parent < 0) {
-            XMStoreFloat4x4(&bones[idx].global, L);
-        }
-        else {
-            XMMATRIX P = XMLoadFloat4x4(&bones[bones[idx].parent].global);
-            XMStoreFloat4x4(&bones[idx].global, XMMatrixMultiply(P, L));
-        }
-    }
-    */
     for (size_t i = 0; i < bones.size(); ++i) {
         if (i < clip->tracks.size() && clip->tracks[i].keys.empty()) {
             XMMATRIX IB = XMLoadFloat4x4(&bones[i].inverseBind);
@@ -90,7 +84,23 @@ void CAnimator::Update(float dt)
             XMStoreFloat4x4(&bones[i].local, Lbd);
         }
     }
-    // 이후 기존의 parent-first 누적(global = P * L) 그대로
+    const int n = (int)bones.size();
+    std::vector<char> vis(n, 0);
+    std::function<void(int)> Build = [&](int i) {
+        if (vis[i]) return;
+        int p = bones[i].parent;
+        if (p >= 0) Build(p);
+        XMMATRIX L = XMLoadFloat4x4(&bones[i].local);
+        if (p >= 0) {
+            XMMATRIX P = XMLoadFloat4x4(&bones[p].global);
+            XMStoreFloat4x4(&bones[i].global, XMMatrixMultiply(P, L)); // 부모 * 로컬
+        }
+        else {
+            XMStoreFloat4x4(&bones[i].global, L);
+        }
+        vis[i] = 1;
+        };
+    for (int i = 0; i < n; ++i) Build(i);
 }
 
 std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
@@ -110,7 +120,7 @@ std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
 }
 CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>& meshBones) {
     std::ifstream in(path, std::ios::binary);
-    if (!in.is_open()) return nullptr; 
+    if (!in.is_open()) return nullptr;
 
     // --- header ---
     uint32_t magic = 0, ver = 0, boneCount = 0;
@@ -173,7 +183,6 @@ CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>&
     clip->duration = (numFrames > 1) ? ((numFrames - 1) / fps) : 0.f;
 
     // --- frames: per-frame, per-bone: T(3), Q(4), S(3) ---
-    const float UNIT = 0.01f; // 모델 포맷과 스케일 일치(포지션 0.01 적용):contentReference[oaicite:2]{index=2}
     for (uint32_t f = 0; f < numFrames; ++f) {
         float t = f / fps;
         for (uint32_t ai = 0; ai < boneCount; ++ai) {
@@ -188,7 +197,8 @@ CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>&
 
             Keyframe k{};
             k.t = t;
-            k.T = XMFLOAT3(T[0] * UNIT, T[1] * UNIT, T[2] * UNIT); // 모델과 동일 스케일
+            // ★ 스케일 보정 제거: 원본 Translation 그대로 사용
+            k.T = XMFLOAT3(T[0], T[1], T[2]);
             // FBX quaternion은 (x,y,z,w) 순, DirectXMath도 동일
             k.R = XMFLOAT4(Q[0], Q[1], Q[2], Q[3]);
             k.S = XMFLOAT3(S[0], S[1], S[2]);
@@ -198,8 +208,20 @@ CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>&
     }
     int matched = (int)std::count_if(mapAnimToMesh.begin(), mapAnimToMesh.end(), [](int i) {return i >= 0; });
     LOGF("[ANIM] bones=%u matched=%d\r\n", boneCount, matched);  // matched==0 이면 원인 확정
+    size_t totalKeys = 0; for (auto& tr : clip->tracks) totalKeys += tr.keys.size();
+    LOGF("[ANIM] totalKeys=%zu\r\n", totalKeys);
+
+    int dbgIdx = -1;
+    for (int i = 0; i < (int)clip->tracks.size(); ++i) {
+        if (!clip->tracks[i].keys.empty()) {   // 키가 하나라도 있는 본 찾기
+            dbgIdx = i;
+            break;
+        }
+    }
+    LOGF("[ANIM] dbgIdx=%d\r\n", dbgIdx);
     return clip;
 }
+
 
 
 /*

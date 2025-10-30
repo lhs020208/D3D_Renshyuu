@@ -259,7 +259,7 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	in.read(reinterpret_cast<char*>(vtx.data()), sizeof(VertexFull) * vcount);
 	in.read(reinterpret_cast<char*>(idx.data()), sizeof(UINT) * icount);
 
-	// 본 정보(안 쓰면 보관만)
+	// 본(스켈레톤) 메타
 	m_FbxBones.clear();
 	for (uint32_t i = 0; i < bcount; i++) {
 		FBXBone bone;
@@ -269,23 +269,29 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 		in.read(bone.name.data(), nameLen);
 		in.read(reinterpret_cast<char*>(&bone.parentIndex), sizeof(int));
 		in.read(reinterpret_cast<char*>(&bone.offsetMatrix), sizeof(float) * 16);
-		
-		//XMMATRIX M = XMLoadFloat4x4(&bone.offsetMatrix);
-		//M = XMMatrixTranspose(M);
-		//XMStoreFloat4x4(&bone.offsetMatrix, M);
-		
 		m_FbxBones.push_back(bone);
 	}
 	in.close();
 
-	// ===== CPU 배열 채우기 (픽킹/OBB/디버그 경로 동일) =====
+	// ---- LH 통일: RH(유니티/FBX) → LH(DirectX) ----
+	//  1) 정점/노멀/탄젠트/비탄젠트 z 부호 반전
+	for (auto& v : vtx) {
+		v.pos.z = -v.pos.z;
+		v.normal.z = -v.normal.z;
+		v.tangent.z = -v.tangent.z;
+		v.bitangent.z = -v.bitangent.z;
+	}
+	//  2) 삼각형 윈딩 스왑(BackFaceCull 유지용)
+	for (uint32_t i = 0; i + 2 < icount; i += 3) std::swap(idx[i + 1], idx[i + 2]);
+
+	// ===== CPU 배열 채우기 =====
 	m_nVertices = vcount;
 	m_nIndices = icount;
 
-	if (m_pxmf3Positions) { delete[] m_pxmf3Positions; m_pxmf3Positions = nullptr; }
-	if (m_pxmf3Normals) { delete[] m_pxmf3Normals;   m_pxmf3Normals = nullptr; }
-	if (m_pxmf2TextureCoords) { delete[] m_pxmf2TextureCoords; m_pxmf2TextureCoords = nullptr; }
-	if (m_pnIndices) { delete[] m_pnIndices;      m_pnIndices = nullptr; }
+	if (m_pxmf3Positions) { delete[] m_pxmf3Positions;        m_pxmf3Positions = nullptr; }
+	if (m_pxmf3Normals) { delete[] m_pxmf3Normals;          m_pxmf3Normals = nullptr; }
+	if (m_pxmf2TextureCoords) { delete[] m_pxmf2TextureCoords;    m_pxmf2TextureCoords = nullptr; }
+	if (m_pnIndices) { delete[] m_pnIndices;             m_pnIndices = nullptr; }
 
 	m_pxmf3Positions = new XMFLOAT3[m_nVertices];
 	m_pxmf3Normals = new XMFLOAT3[m_nVertices];
@@ -295,19 +301,18 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	for (UINT i = 0; i < m_nVertices; i++) {
 		m_pxmf3Positions[i] = vtx[i].pos;
 		m_pxmf3Normals[i] = vtx[i].normal;
-		m_pxmf2TextureCoords[i] = vtx[i].uv; // 셰이더에서 쓸 거면 별도 VB 또는 인터리브 확장 필요
+		m_pxmf2TextureCoords[i] = vtx[i].uv;
 	}
 	memcpy(m_pnIndices, idx.data(), sizeof(UINT) * m_nIndices);
 
-	// ===== GPU 업로드 (기존 파이프라인: pos+normal+skin) =====
+	// ===== GPU 업로드(인터리브: pos+normal+uv+skin) =====
 	struct VertexBufferData {
 		XMFLOAT3 pos;
 		XMFLOAT3 normal;
 		XMFLOAT2 uv;
-		UINT boneIndices[4];
+		UINT  boneIndices[4];
 		float boneWeights[4];
 	};
-
 	std::vector<VertexBufferData> vb(m_nVertices);
 	for (UINT i = 0; i < m_nVertices; i++) {
 		vb[i].pos = vtx[i].pos;
@@ -317,7 +322,6 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 		memcpy(vb[i].boneWeights, vtx[i].boneWeights, sizeof(float) * 4);
 	}
 
-	// 정점 버퍼
 	const UINT vbSize = (UINT)(sizeof(VertexBufferData) * m_nVertices);
 	if (m_pd3dPositionBuffer) m_pd3dPositionBuffer->Release();
 	m_pd3dPositionBuffer = CreateBufferResource(device, cmdList, vb.data(), vbSize,
@@ -330,7 +334,6 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	m_pd3dVertexBufferViews[0].StrideInBytes = sizeof(VertexBufferData);
 	m_pd3dVertexBufferViews[0].SizeInBytes = vbSize;
 
-	// 인덱스 버퍼
 	const UINT ibSize = (UINT)(sizeof(UINT) * m_nIndices);
 	if (m_pd3dIndexBuffer) m_pd3dIndexBuffer->Release();
 	m_pd3dIndexBuffer = CreateBufferResource(device, cmdList, m_pnIndices, ibSize,
@@ -340,17 +343,18 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	m_d3dIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
 	m_d3dIndexBufferView.SizeInBytes = ibSize;
 
-	// OBB (원본 위치 기반)
+	// OBB (LH 좌표 기준)
 	XMFLOAT3 min = m_pxmf3Positions[0], max = m_pxmf3Positions[0];
 	for (UINT i = 1; i < m_nVertices; i++) {
 		auto& v = m_pxmf3Positions[i];
 		if (v.x < min.x) min.x = v.x; if (v.y < min.y) min.y = v.y; if (v.z < min.z) min.z = v.z;
 		if (v.x > max.x) max.x = v.x; if (v.y > max.y) max.y = v.y; if (v.z > max.z) max.z = v.z;
 	}
-	XMFLOAT3 center{ (min.x + max.x) * 0.5f,(min.y + max.y) * 0.5f,(min.z + max.z) * 0.5f };
-	XMFLOAT3 extent{ (max.x - min.x) * 0.5f,(max.y - min.y) * 0.5f,(max.z - min.z) * 0.5f };
+	XMFLOAT3 center{ (min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f, (min.z + max.z) * 0.5f };
+	XMFLOAT3 extent{ (max.x - min.x) * 0.5f, (max.y - min.y) * 0.5f, (max.z - min.z) * 0.5f };
 	m_xmOOBB = BoundingOrientedBox(center, extent, XMFLOAT4(0, 0, 0, 1));
 }
+
 void CMesh::SetPolygon(int nIndex, CPolygon* pPolygon)
 {
 	if ((0 <= nIndex) && (nIndex < m_nPolygons)) m_ppPolygons[nIndex] = pPolygon;
