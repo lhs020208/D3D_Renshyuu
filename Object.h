@@ -72,7 +72,7 @@ public:
 
 	void EnableSkinningFromMesh(const CMesh* mesh); // 메쉬의 본 → Animator 스켈레톤으로 복사
 	void SetAnimationClip(CAnimationClip* clip);    // 애니 클립 지정(루프는 Animator가 처리)
-protected:
+public:
 	CAnimator* m_pAnimator = nullptr;         // 애니메이터
 	ID3D12Resource* m_pd3dBoneCB = nullptr;   // 본 행렬용 상수버퍼 (b4)
 	UINT m_nBoneCount = 0;                    // 본 개수 (CB 크기 계산용)

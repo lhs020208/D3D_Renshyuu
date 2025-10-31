@@ -222,13 +222,13 @@ void CTankScene::BuildObjects(ID3D12Device* pd3dDevice, ID3D12GraphicsCommandLis
 
 	m_pPlayer->CreateShaderVariables(pd3dDevice, pd3dCommandList);
 
-	CAnimationClip* clip = LoadAnimBIN("Models/unitychan_WAIT00.bin", pPlayerMesh->GetBones());
+	CAnimationClip* clip = LoadAnimBIN("Models/unitychan_JUMP00.bin", pPlayerMesh->GetBones());
 
 
 	//m_pPlayer->SetAnimationClip(clip);
 
 	m_pPlayer->SetPosition(0.0f, 6.0f, 0.0f);
-	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 20.0f, -360.0f));
+	m_pPlayer->SetCameraOffset(XMFLOAT3(0.0f, 2.0f, 5.0f));
 
 }
 
@@ -280,6 +280,9 @@ void CTankScene::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM 
 			break;
 		case 'D':
 			if (m_pPlayer->move_x < 1)m_pPlayer->move_x += 1;
+			break;
+		case ' ':
+			m_pPlayer->m_pAnimator->time += 0.01;
 			break;
 		default:
 			break;
