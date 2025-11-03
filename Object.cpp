@@ -381,12 +381,8 @@ void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
 		skel[i].parent = bones[i].parentIndex;
 		skel[i].inverseBind = bones[i].offsetMatrix; // inverse bind (BIN)
 
-		// ★ FBX(RH) -> DX(LH) 기준축 통일: inverseBind에 1회만 적용
-		XMMATRIX IB = XMLoadFloat4x4(&skel[i].inverseBind);
-		IB = ToLH(IB);
-		XMStoreFloat4x4(&skel[i].inverseBind, IB);
-
 		// 바인드 전역행렬(Gbind) 갱신
+		XMMATRIX IB = XMLoadFloat4x4(&skel[i].inverseBind);
 		XMMATRIX Gbind = XMMatrixInverse(nullptr, IB);
 		XMStoreFloat4x4(&skel[i].global, Gbind);
 		XMStoreFloat4x4(&skel[i].local, XMMatrixIdentity());
@@ -399,7 +395,7 @@ void CGameObject::EnableSkinningFromMesh(const CMesh* mesh)
 		}
 	}
 	m_pAnimator->SetSkeleton(skel);
-	LOGF("[SKIN] meshBones=%zu, shaderLimit=128\r\n", bones.size());   // 128은 HLSL gBoneTransforms 크기
+	
 }
 
 

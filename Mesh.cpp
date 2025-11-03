@@ -273,17 +273,6 @@ void CMesh::LoadMeshFromFile_bin(ID3D12Device* device, ID3D12GraphicsCommandList
 	}
 	in.close();
 
-	// ---- LH 통일: RH(유니티/FBX) → LH(DirectX) ----
-	//  1) 정점/노멀/탄젠트/비탄젠트 z 부호 반전
-	for (auto& v : vtx) {
-		v.pos.z = -v.pos.z;
-		v.normal.z = -v.normal.z;
-		v.tangent.z = -v.tangent.z;
-		v.bitangent.z = -v.bitangent.z;
-	}
-	//  2) 삼각형 윈딩 스왑(BackFaceCull 유지용)
-	for (uint32_t i = 0; i + 2 < icount; i += 3) std::swap(idx[i + 1], idx[i + 2]);
-
 	// ===== CPU 배열 채우기 =====
 	m_nVertices = vcount;
 	m_nIndices = icount;

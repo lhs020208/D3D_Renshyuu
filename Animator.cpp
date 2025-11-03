@@ -4,9 +4,10 @@
 
 static inline XMMATRIX ComposeTRS(const XMFLOAT3& T, const XMFLOAT4& R, const XMFLOAT3& S)
 {
-    return XMMatrixScaling(S.x, S.y, S.z) *
-        XMMatrixRotationQuaternion(XMLoadFloat4(&R)) *
-        XMMatrixTranslation(T.x, T.y, T.z);
+    XMMATRIX Sm = XMMatrixScaling(S.x, S.y, S.z);
+    XMMATRIX Rm = XMMatrixRotationQuaternion(XMLoadFloat4(&R));
+    XMMATRIX Tm = XMMatrixTranslation(T.x, T.y, T.z);
+    return Tm * Rm * Sm; // ← 추가: 순서 고정 (S*R*T)
 }
 
 static inline void LerpKey(const Keyframe& k0, const Keyframe& k1, float t01,
@@ -23,7 +24,7 @@ void CAnimationClip::Evaluate(float time, std::vector<BoneTransform>& out) const
     if (tracks.empty()) return;
     if (out.size() < tracks.size()) out.resize(tracks.size());
 
-    // 루프 애니
+    // 루프 애니메이션 지원
     float t = duration > 0.f ? fmodf(time, duration) : time;
 
     for (size_t i = 0; i < tracks.size(); ++i)
@@ -37,29 +38,31 @@ void CAnimationClip::Evaluate(float time, std::vector<BoneTransform>& out) const
         if (tr.keys.size() == 1) {
             const auto& k = tr.keys[0];
             XMMATRIX M = ComposeTRS(k.T, k.R, k.S);
-            XMStoreFloat4x4(&out[i].local, ToLH(M));     // 좌표계 통일
+            XMStoreFloat4x4(&out[i].local, M);
             continue;
         }
 
-        // 구간 탐색
+        // === 키프레임 구간 탐색 ===
         size_t k = 0;
         while (k + 1 < tr.keys.size() && tr.keys[k + 1].t <= t) ++k;
-        if (k + 1 >= tr.keys.size()) { // 마지막 구간 넘음 -> 마지막 키 유지
+        if (k + 1 >= tr.keys.size()) {
             const auto& last = tr.keys.back();
             XMMATRIX M = ComposeTRS(last.T, last.R, last.S);
-            XMStoreFloat4x4(&out[i].local, ToLH(M));     
+            // XMStoreFloat4x4(&out[i].local, ToLH(M));          // 제거: 추출물이 이미 LH
+            XMStoreFloat4x4(&out[i].local, M);                    // 추가: LH 그대로 사용
             continue;
         }
 
         const auto& k0 = tr.keys[k];
         const auto& k1 = tr.keys[k + 1];
         float denom = (std::max)(1e-6f, (k1.t - k0.t));
-        float a = (t - k0.t) / denom;  // 0..1
+        float a = (t - k0.t) / denom;
 
         XMFLOAT3 T; XMFLOAT4 R; XMFLOAT3 S;
         LerpKey(k0, k1, a, T, R, S);
         XMMATRIX M = ComposeTRS(T, R, S);
-        XMStoreFloat4x4(&out[i].local, ToLH(M));         
+        // XMStoreFloat4x4(&out[i].local, ToLH(M));              // 제거: 추출물이 이미 LH
+        XMStoreFloat4x4(&out[i].local, M);                        // 추가: LH 그대로 사용
     }
 }
 
@@ -71,17 +74,16 @@ void CAnimator::Update(float dt)
     time += dt;
     clip->Evaluate(time, bones); // local 채움
 
-    for (size_t i = 0; i < bones.size(); ++i) {
-        if (i < clip->tracks.size() && clip->tracks[i].keys.empty()) {
-            XMMATRIX IB = XMLoadFloat4x4(&bones[i].inverseBind);
-            XMMATRIX Gbd = XMMatrixInverse(nullptr, IB); // Gbind
-            XMMATRIX Lbd = Gbd;
-            int p = bones[i].parent;
-            if (p >= 0) {
-                XMMATRIX IBp = XMLoadFloat4x4(&bones[p].inverseBind); // = inverse(Gbind_parent)
-                Lbd = XMMatrixMultiply(IBp, Gbd); // Lbind = IB_parent * Gbind
-            }
-            XMStoreFloat4x4(&bones[i].local, Lbd);
+    for (int i : order)
+    {
+        XMMATRIX L = XMLoadFloat4x4(&bones[i].local);
+        if (bones[i].parent < 0) {
+            XMStoreFloat4x4(&bones[i].global, L);
+        }
+        else {
+            XMMATRIX P = XMLoadFloat4x4(&bones[bones[i].parent].global);
+            XMMATRIX G = XMMatrixMultiply(P, L);       // ← 추가: parent * local
+            XMStoreFloat4x4(&bones[i].global, G);
         }
     }
 
@@ -103,6 +105,10 @@ void CAnimator::Update(float dt)
         };
     for (int i = 0; i < n; ++i) Build(i);
 
+    
+    XMVECTOR S, R, T; XMMatrixDecompose(&S, &R, &T, XMLoadFloat4x4(&bones[0].global));
+    XMFLOAT3 s; XMStoreFloat3(&s, S);
+    LOGF("[DBG] root scale = (%.5f, %.5f, %.5f)\r\n", s.x, s.y, s.z);
 }
 
 std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
@@ -113,8 +119,8 @@ std::vector<XMFLOAT4X4> CAnimator::GetSkinMatrices() const
     {
         XMMATRIX G = XMLoadFloat4x4(&bones[i].global);
         XMMATRIX IB = XMLoadFloat4x4(&bones[i].inverseBind);
-        XMMATRIX M = G * IB;                   // skin = global * inverseBind
-
+        //XMMATRIX M = G * IB;                   // skin = global * inverseBind
+        XMMATRIX M = XMMatrixMultiply(G, IB);
         // HLSL에서 mul(pos, M)을 쓰는 경우 보통 열-주도 매칭을 위해 전치가 필요
         XMStoreFloat4x4(&out[i], XMMatrixTranspose(M));
     }
@@ -200,6 +206,7 @@ CAnimationClip* LoadAnimBIN(const char* path, const std::vector<CMesh::FBXBone>&
             Keyframe k{};
             k.t = t;
             // ★ 스케일 보정 제거: 원본 Translation 그대로 사용
+            //k.T = XMFLOAT3(T[0] * 0.01f, T[1] * 0.01f, T[2] * 0.01f);
             k.T = XMFLOAT3(T[0], T[1], T[2]);
             // FBX quaternion은 (x,y,z,w) 순, DirectXMath도 동일
             k.R = XMFLOAT4(Q[0], Q[1], Q[2], Q[3]);
